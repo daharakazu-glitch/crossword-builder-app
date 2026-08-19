@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 import type { WordItem } from '../types/crossword';
+import { generateSentenceForWord } from './sentenceGenerator';
 
 // PDF Worker の設定
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -64,11 +65,12 @@ export function parseTextContentToWords(text: string): WordItem[] {
     japanese = japanese.trim();
 
     if (word && /^[A-Z]{2,}$/.test(word)) {
+      const generated = generateSentenceForWord(word, japanese);
       items.push({
         id: `extracted-${Date.now()}-${index}`,
         word,
-        japanese: japanese || '（訳未指定）',
-        sentence: sentence || undefined,
+        japanese: japanese || generated.japanese,
+        sentence: sentence || generated.sentence,
       });
     }
   });
@@ -99,11 +101,12 @@ export async function parseCsvFile(file: File): Promise<WordItem[]> {
           sentence = String(sentence).trim();
 
           if (word && /^[A-Z]{2,}$/.test(word)) {
+            const generated = generateSentenceForWord(word, japanese);
             items.push({
               id: `csv-${Date.now()}-${idx}`,
               word,
-              japanese: japanese || '（訳未指定）',
-              sentence: sentence || undefined,
+              japanese: japanese || generated.japanese,
+              sentence: sentence || generated.sentence,
             });
           }
         });
@@ -138,11 +141,12 @@ export async function parseExcelFile(file: File): Promise<WordItem[]> {
     sentence = String(sentence).trim();
 
     if (word && /^[A-Z]{2,}$/.test(word)) {
+      const generated = generateSentenceForWord(word, japanese);
       items.push({
         id: `excel-${Date.now()}-${idx}`,
         word,
-        japanese: japanese || '（訳未指定）',
-        sentence: sentence || undefined,
+        japanese: japanese || generated.japanese,
+        sentence: sentence || generated.sentence,
       });
     }
   });

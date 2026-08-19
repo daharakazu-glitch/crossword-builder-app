@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, ListPlus } from 'lucide-react';
 import type { WordItem } from '../../types/crossword';
 import { parseTextContentToWords } from '../../utils/fileParsers';
+import { generateSentenceForWord } from '../../utils/sentenceGenerator';
 
 interface ManualInputProps {
   onAddWord: (word: WordItem) => void;
@@ -35,11 +36,13 @@ export const ManualInput: React.FC<ManualInputProps> = ({
       return;
     }
 
+    const generated = generateSentenceForWord(cleanWord, japanese);
+
     onAddWord({
       id: `manual-${Date.now()}`,
       word: cleanWord,
-      japanese: japanese.trim() || '（訳未指定）',
-      sentence: sentence.trim() || undefined,
+      japanese: japanese.trim() || generated.japanese,
+      sentence: sentence.trim() || generated.sentence,
     });
 
     setWord('');

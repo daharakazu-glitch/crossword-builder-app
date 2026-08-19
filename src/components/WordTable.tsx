@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Trash2, Edit2, Check, X, Sparkles, AlertCircle, ListFilter } from 'lucide-react';
+import { Trash2, Edit2, Check, X, Sparkles, AlertCircle, ListFilter, Wand2 } from 'lucide-react';
 import type { WordItem } from '../types/crossword';
 import { INITIAL_SAMPLE_WORDS, PRESET_100_WORDS } from '../utils/sampleData';
+import { generateSentenceForWord } from '../utils/sentenceGenerator';
 
 interface WordTableProps {
   words: WordItem[];
@@ -36,12 +37,29 @@ export const WordTable: React.FC<WordTableProps> = ({
     const cleanWord = editWord.trim().toUpperCase().replace(/[^A-Z]/g, '');
     if (!cleanWord) return;
 
+    const generated = generateSentenceForWord(cleanWord, editJapanese);
+
     onUpdateWord(id, {
       word: cleanWord,
-      japanese: editJapanese.trim() || '（訳未指定）',
-      sentence: editSentence.trim() || undefined,
+      japanese: editJapanese.trim() || generated.japanese,
+      sentence: editSentence.trim() || generated.sentence,
     });
     setEditingId(null);
+  };
+
+  const handleGenerateMissingSentences = () => {
+    const updatedList = words.map((w) => {
+      if (!w.sentence || w.sentence.trim() === '') {
+        const generated = generateSentenceForWord(w.word, w.japanese);
+        return {
+          ...w,
+          japanese: w.japanese === '（訳未指定）' ? generated.japanese : w.japanese,
+          sentence: generated.sentence,
+        };
+      }
+      return w;
+    });
+    onSetWords(updatedList);
   };
 
   const cancelEditing = () => {
@@ -63,6 +81,13 @@ export const WordTable: React.FC<WordTableProps> = ({
         </div>
 
         <div className="table-actions">
+          <button
+            className="btn btn-sm btn-outline-purple"
+            onClick={handleGenerateMissingSentences}
+            title="例文が空の単語に例文と訳を自動生成"
+          >
+            <Wand2 size={14} /> 例文を一括自動生成
+          </button>
           <button
             className="btn btn-sm btn-outline"
             onClick={() => onSetWords(INITIAL_SAMPLE_WORDS)}
