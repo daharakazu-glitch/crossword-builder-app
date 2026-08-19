@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, Eye, EyeOff, RotateCcw, Lightbulb } from 'lucide-react';
+import { CheckCircle, Eye, EyeOff, RotateCcw, Lightbulb, Volume2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface InteractiveControlsProps {
@@ -8,6 +8,7 @@ interface InteractiveControlsProps {
   onCheckAnswers: () => boolean;
   onHintOneLetter: () => void;
   onResetUserInputs: () => void;
+  onOpenAudioPractice: () => void;
 }
 
 export const InteractiveControls: React.FC<InteractiveControlsProps> = ({
@@ -16,6 +17,7 @@ export const InteractiveControls: React.FC<InteractiveControlsProps> = ({
   onCheckAnswers,
   onHintOneLetter,
   onResetUserInputs,
+  onOpenAudioPractice,
 }) => {
   const handleCheck = () => {
     const isAllCorrect = onCheckAnswers();
@@ -25,7 +27,9 @@ export const InteractiveControls: React.FC<InteractiveControlsProps> = ({
         spread: 70,
         origin: { y: 0.6 },
       });
-      alert('🎉 おめでとうございます！全問大正解です！');
+      if (window.confirm('🎉 おめでとうございます！全問大正解です！\n英語例文の音声リスニング＆発音録音練習を開始しますか？')) {
+        onOpenAudioPractice();
+      }
     }
   };
 
@@ -38,6 +42,10 @@ export const InteractiveControls: React.FC<InteractiveControlsProps> = ({
 
         <button className="btn btn-outline" onClick={onHintOneLetter}>
           <Lightbulb size={16} color="#f59e0b" /> 1文字ヒント
+        </button>
+
+        <button className="btn btn-outline-purple" onClick={onOpenAudioPractice}>
+          <Volume2 size={16} /> 🎧 例文の音声＆録音練習
         </button>
 
         <button className="btn btn-outline" onClick={onToggleShowAnswers}>

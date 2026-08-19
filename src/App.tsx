@@ -13,6 +13,7 @@ import { CluesList } from './components/CluesList';
 import { InteractiveControls } from './components/InteractiveControls';
 import { PdfExportModal } from './components/PdfExportModal';
 import { HelpModal } from './components/HelpModal';
+import { AudioPracticeModal } from './components/AudioPracticeModal';
 import { FileText, Camera, Edit3 } from 'lucide-react';
 import './App.css';
 
@@ -32,6 +33,7 @@ export const App: React.FC = () => {
   // モーダル状態
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [inputTab, setInputTab] = useState<'manual' | 'file' | 'ocr'>('manual');
 
   // クロスワード生成の更新
@@ -292,6 +294,7 @@ export const App: React.FC = () => {
               onCheckAnswers={handleCheckAnswers}
               onHintOneLetter={handleHintOneLetter}
               onResetUserInputs={handleResetUserInputs}
+              onOpenAudioPractice={() => setIsAudioModalOpen(true)}
             />
 
             <div className="puzzle-workspace">
@@ -329,6 +332,14 @@ export const App: React.FC = () => {
 
       {/* 使い方ヘルプモーダル */}
       {isHelpModalOpen && <HelpModal onClose={() => setIsHelpModalOpen(false)} />}
+
+      {/* 音声・録音練習モーダル */}
+      {isAudioModalOpen && (
+        <AudioPracticeModal
+          placedWords={grid.placedWords}
+          onClose={() => setIsAudioModalOpen(false)}
+        />
+      )}
     </div>
   );
 };
