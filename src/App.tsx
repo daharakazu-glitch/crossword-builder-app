@@ -87,14 +87,30 @@ export const App: React.FC = () => {
     const cell = grid.cells[row][col];
     if (cell.isBlack) return;
 
+    const hasAcross = !!cell.acrossWordId;
+    const hasDown = !!cell.downWordId;
+
     if (activeCell?.row === row && activeCell?.col === col) {
-      // 同じセルをクリックしたら Across ⇄ Down 切り替え
-      const nextDir = activeDirection === 'across' ? 'down' : 'across';
-      setActiveDirection(nextDir);
-      updateSelectedWordId(row, col, nextDir);
+      // 同じセルをもう一度クリックした場合は方向をトグル (Across ⇄ Down)
+      if (hasAcross && hasDown) {
+        const nextDir = activeDirection === 'across' ? 'down' : 'across';
+        setActiveDirection(nextDir);
+        updateSelectedWordId(row, col, nextDir);
+      }
     } else {
       setActiveCell({ row, col });
-      updateSelectedWordId(row, col, activeDirection);
+      let newDir = activeDirection;
+
+      // 横単語にしか属していない場合は 'across'
+      if (hasAcross && !hasDown) {
+        newDir = 'across';
+      } else if (hasDown && !hasAcross) {
+        // 縦単語にしか属していない場合は 'down'
+        newDir = 'down';
+      }
+
+      setActiveDirection(newDir);
+      updateSelectedWordId(row, col, newDir);
     }
   };
 

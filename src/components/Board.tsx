@@ -30,6 +30,7 @@ export const Board: React.FC<BoardProps> = ({
       const inputEl = document.getElementById(`cell-input-${activeCell.row}-${activeCell.col}`);
       if (inputEl) {
         inputEl.focus();
+        inputEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
       }
     }
   }, [activeCell]);
