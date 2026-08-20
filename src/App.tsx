@@ -127,12 +127,13 @@ export const App: React.FC = () => {
     setActiveCell({ row: word.row, col: word.col });
   };
 
-  // 全角英数を半角大文字A-Zに変換するヘルパー
+  // 全角英数を半角大文字A-Zに変換 & 最新の1文字を抽出（二重入力防止）
   const normalizeInputLetter = (raw: string): string => {
     const zenkakuConverted = raw.replace(/[Ａ-Ｚａ-ｚ]/g, (s) =>
       String.fromCharCode(s.charCodeAt(0) - 0xfee0)
     );
-    return zenkakuConverted.toUpperCase().replace(/[^A-Z]/g, '');
+    const clean = zenkakuConverted.toUpperCase().replace(/[^A-Z]/g, '');
+    return clean.length > 0 ? clean.slice(-1) : '';
   };
 
   // 指定方向の次の白マスを検索（黒マススキップ）

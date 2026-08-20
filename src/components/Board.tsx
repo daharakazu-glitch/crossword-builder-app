@@ -27,9 +27,12 @@ export const Board: React.FC<BoardProps> = ({
 
   useEffect(() => {
     if (activeCell) {
-      const inputEl = document.getElementById(`cell-input-${activeCell.row}-${activeCell.col}`);
+      const inputEl = document.getElementById(
+        `cell-input-${activeCell.row}-${activeCell.col}`
+      ) as HTMLInputElement;
       if (inputEl) {
         inputEl.focus();
+        inputEl.select(); // セル内の既存文字を自動全選択して打鍵した文字で即上書き可能にする
         inputEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
       }
     }
@@ -91,6 +94,7 @@ export const Board: React.FC<BoardProps> = ({
                   value={displayLetter}
                   onChange={(e) => onCellInput(r, c, e.target.value)}
                   onCompositionEnd={(e) => onCellInput(r, c, e.data)}
+                  onFocus={(e) => e.target.select()}
                   onKeyDown={onKeyDownNav}
                   className="cell-input"
                   readOnly={showAnswers}
