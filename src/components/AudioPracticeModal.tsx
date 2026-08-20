@@ -19,7 +19,7 @@ export const AudioPracticeModal: React.FC<AudioPracticeModalProps> = ({
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [audioUrls, setAudioUrls] = useState<Record<string, string>>({});
   const [recognitionResults, setRecognitionResults] = useState<
-    Record<string, { transcript: string; score: number }>
+    Record<string, { transcript: string; evalResult: { score: number; message: string; badge: string } }>
   >({});
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -62,12 +62,12 @@ export const AudioPracticeModal: React.FC<AudioPracticeModalProps> = ({
       mediaRecorderRef.current.start();
       setRecordingId(item.id);
 
-      // 同時に音声認識（可能であれば）
+      // 同時に音声認識
       const recognizer = createSpeechRecognizer((recognizedText) => {
-        const score = calculateSimilarity(text, recognizedText);
+        const evalResult = calculateSimilarity(text, recognizedText, item.word);
         setRecognitionResults((prev) => ({
           ...prev,
-          [item.id]: { transcript: recognizedText, score },
+          [item.id]: { transcript: recognizedText, evalResult },
         }));
       });
 
@@ -196,8 +196,9 @@ export const AudioPracticeModal: React.FC<AudioPracticeModalProps> = ({
                   {scoreInfo && (
                     <div className="score-feedback">
                       <span className="score-badge">
-                        ⭐ Match Score: {scoreInfo.score}%
+                        ⭐ {scoreInfo.evalResult.score}点 [{scoreInfo.evalResult.badge}]
                       </span>
+                      <span className="score-message">{scoreInfo.evalResult.message}</span>
                       <span className="recognized-transcript">
                         (認識結果: "{scoreInfo.transcript}")
                       </span>
