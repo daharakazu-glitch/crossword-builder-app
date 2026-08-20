@@ -86,11 +86,16 @@ export const Board: React.FC<BoardProps> = ({
                 <input
                   id={`cell-input-${r}-${c}`}
                   type="text"
-                  maxLength={1}
+                  maxLength={2} // 全角等の入力判定を許容するため2文字まで受け取り即座に整形
                   value={displayLetter}
                   onChange={(e) => onCellInput(r, c, e.target.value)}
+                  onCompositionEnd={(e) => onCellInput(r, c, e.data)}
+                  onKeyDown={onKeyDownNav}
                   className="cell-input"
                   readOnly={showAnswers}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
               </div>
             );

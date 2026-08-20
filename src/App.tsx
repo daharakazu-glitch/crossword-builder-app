@@ -111,9 +111,37 @@ export const App: React.FC = () => {
     setActiveCell({ row: word.row, col: word.col });
   };
 
+  // 全角英数を半角大文字A-Zに変換するヘルパー
+  const normalizeInputLetter = (raw: string): string => {
+    const zenkakuConverted = raw.replace(/[Ａ-Ｚａ-ｚ]/g, (s) =>
+      String.fromCharCode(s.charCodeAt(0) - 0xfee0)
+    );
+    return zenkakuConverted.toUpperCase().replace(/[^A-Z]/g, '');
+  };
+
+  // 指定方向の次の白マスを検索（黒マススキップ）
+  const findNextWhiteCell = (
+    startRow: number,
+    startCol: number,
+    dRow: number,
+    dCol: number
+  ): { row: number; col: number } | null => {
+    let r = startRow + dRow;
+    let c = startCol + dCol;
+
+    while (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
+      if (!grid.cells[r][c].isBlack) {
+        return { row: r, col: c };
+      }
+      r += dRow;
+      c += dCol;
+    }
+    return null;
+  };
+
   // 文字入力 & フォーカス前進
   const handleCellInput = (row: number, col: number, letter: string) => {
-    const uppercaseLetter = letter.toUpperCase().replace(/[^A-Z]/g, '');
+    const uppercaseLetter = normalizeInputLetter(letter);
 
     setGrid((prevGrid) => {
       const newCells = prevGrid.cells.map((r, rIdx) =>
@@ -134,37 +162,78 @@ export const App: React.FC = () => {
   };
 
   const advanceFocus = (row: number, col: number) => {
-    if (activeDirection === 'across') {
-      if (col + 1 < gridSize && !grid.cells[row][col + 1].isBlack) {
-        setActiveCell({ row, col: col + 1 });
-      }
-    } else {
-      if (row + 1 < gridSize && !grid.cells[row + 1][col].isBlack) {
-        setActiveCell({ row: row + 1, col });
-      }
+    const nextCell =
+      activeDirection === 'across'
+        ? findNextWhiteCell(row, col, 0, 1)
+        : findNextWhiteCell(row, col, 1, 0);
+
+    if (nextCell) {
+      setActiveCell(nextCell);
     }
   };
 
-  // キーボードナビゲーション
+  // キーボードナビゲーション & ショートカット
   const handleKeyDownNav = (e: React.KeyboardEvent) => {
     if (!activeCell) return;
     const { row, col } = activeCell;
 
-    if (e.key === 'ArrowRight' && col + 1 < gridSize && !grid.cells[row][col + 1].isBlack) {
-      setActiveCell({ row, col: col + 1 });
-    } else if (e.key === 'ArrowLeft' && col - 1 >= 0 && !grid.cells[row][col - 1].isBlack) {
-      setActiveCell({ row, col: col - 1 });
-    } else if (e.key === 'ArrowDown' && row + 1 < gridSize && !grid.cells[row + 1][col].isBlack) {
-      setActiveCell({ row: row + 1, col });
-    } else if (e.key === 'ArrowUp' && row - 1 >= 0 && !grid.cells[row - 1][col].isBlack) {
-      setActiveCell({ row: row - 1, col });
+    if (e.key === ' ' || e.code === 'Space') {
+      // Space キーで方向切り替え
+      e.preventDefault();
+      const nextDir = activeDirection === 'across' ? 'down' : 'across';
+      setActiveDirection(nextDir);
+      updateSelectedWordId(row, col, nextDir);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      const next = findNextWhiteCell(row, col, 0, 1);
+      if (next) setActiveCell(next);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const next = findNextWhiteCell(row, col, 0, -1);
+      if (next) setActiveCell(next);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = findNextWhiteCell(row, col, 1, 0);
+      if (next) setActiveCell(next);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = findNextWhiteCell(row, col, -1, 0);
+      if (next) setActiveCell(next);
     } else if (e.key === 'Backspace') {
-      if (!grid.cells[row][col].userLetter) {
-        // 現在のマスが空なら前のマスに戻る
-        if (activeDirection === 'across' && col - 1 >= 0) {
-          setActiveCell({ row, col: col - 1 });
-        } else if (activeDirection === 'down' && row - 1 >= 0) {
-          setActiveCell({ row: row - 1, col });
+      e.preventDefault();
+      // 現在の文字を消去し、前の白マスへ戻る
+      setGrid((prevGrid) => {
+        const newCells = prevGrid.cells.map((r, rIdx) =>
+          r.map((c, cIdx) => {
+            if (rIdx === row && cIdx === col) {
+              return { ...c, userLetter: '', isCorrect: undefined };
+            }
+            return c;
+          })
+        );
+        return { ...prevGrid, cells: newCells };
+      });
+
+      const prevCell =
+        activeDirection === 'across'
+          ? findNextWhiteCell(row, col, 0, -1)
+          : findNextWhiteCell(row, col, -1, 0);
+
+      if (prevCell) {
+        setActiveCell(prevCell);
+      }
+    } else if (e.key === 'Tab') {
+      // Tabキーで次の単語に移動
+      e.preventDefault();
+      const placedWords = grid.placedWords;
+      if (placedWords.length > 0) {
+        const currentIndex = placedWords.findIndex((w) => w.id === selectedWordId);
+        const nextIndex = e.shiftKey
+          ? (currentIndex - 1 + placedWords.length) % placedWords.length
+          : (currentIndex + 1) % placedWords.length;
+        const targetWord = placedWords[nextIndex];
+        if (targetWord) {
+          handleSelectWordClue(targetWord);
         }
       }
     }
