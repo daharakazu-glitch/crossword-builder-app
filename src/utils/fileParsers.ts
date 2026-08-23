@@ -5,77 +5,96 @@ import mammoth from 'mammoth';
 import type { WordItem } from '../types/crossword';
 import { generateSentenceForWord } from './sentenceGenerator';
 
-// PDF Worker の設定
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// PDF Worker の確実なロード設定 (Vite ESM & CDN フォールバック)
+try {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url
+  ).toString();
+} catch (_e) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+}
 
 /**
- * テキスト行から英単語・日本語訳・例文をパースする汎用関数
+ * テキスト行から英単語・日本語訳・例文をスマートに抽出する汎用関数
  */
 export function parseTextContentToWords(text: string): WordItem[] {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const items: WordItem[] = [];
+  const rawLines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const entries: { rawWord: string; rawMeaning: string; rawSentence?: string }[] = [];
+  let currentEntry: { rawWord: string; rawMeaning: string; rawSentence?: string } | null = null;
 
-  lines.forEach((line, index) => {
-    // 形式例:
-    // 1. APPLE: りんご (An apple a day...)
-    // APPLE - りんご
-    // APPLE, りんご, 例文
-    // APPLE\tりんご
-    let word = '';
-    let japanese = '';
-    let sentence = '';
+  for (const line of rawLines) {
+    // 記号（•, ・, ●, ○, ■, ◆, ▶, *, +, -, –, —, 番号 "1.", "(1)", "[1]" など）を先頭からトリム
+    const cleanLine = line
+      .replace(/^[\u2022\u2023\u25E6\u2043\u2219•・●○■◆▶*+\-–—\s\d\.\)\(\]]+/, '')
+      .trim();
 
-    const tabParts = line.split('\t');
-    const commaParts = line.split(',');
-    const colonParts = line.split(/[:：]/);
-    const hyphenParts = line.split(/[-–—]/);
+    if (!cleanLine) continue;
 
-    if (tabParts.length >= 2) {
-      word = tabParts[0];
-      japanese = tabParts[1];
-      sentence = tabParts[2] || '';
-    } else if (commaParts.length >= 2) {
-      word = commaParts[0];
-      japanese = commaParts[1];
-      sentence = commaParts[2] || '';
-    } else if (colonParts.length >= 2) {
-      word = colonParts[0];
-      japanese = colonParts[1];
-    } else if (hyphenParts.length >= 2) {
-      word = hyphenParts[0];
-      japanese = hyphenParts[1];
-    } else {
-      // 英文中の単語を正規表現で抽出
-      const match = line.match(/^([A-Za-z]+)\s+[\(（](.+?)[\)）]/);
-      if (match) {
-        word = match[1];
-        japanese = match[2];
-      } else {
-        const cleanLine = line.replace(/^\d+[\.\s)]*/, '').trim();
-        const singleWordMatch = cleanLine.match(/^[A-Za-z]{2,}/);
-        if (singleWordMatch) {
-          word = singleWordMatch[0];
-          japanese = cleanLine.replace(word, '').trim();
-        }
+    // パターン1: "word: 日本語 (例文)" または "word：日本語"
+    const colonMatch = cleanLine.match(/^([A-Za-z]{2,})\s*[:：]\s*(.*)$/);
+    // パターン2: "word [品詞] 日本語" または "word (品詞) 日本語" または "word 日本語"
+    const spaceMatch = cleanLine.match(/^([A-Za-z]{2,})\s+([\[\(（].*|[\u3040-\u30ff\u4e00-\u9faf].*)$/);
+    // パターン3: タブまたはカンマ区切り (word\t日本語\t例文)
+    const delimiterMatch = cleanLine.match(/^([A-Za-z]{2,})\s*[\t,]\s*(.*)$/);
+    // パターン4: 単語単体の行
+    const singleWordMatch = cleanLine.match(/^([A-Za-z]{2,})$/);
+
+    const match = colonMatch || delimiterMatch || spaceMatch || singleWordMatch;
+
+    if (match) {
+      const wordCandidate = match[1];
+      const rest = match[2] || '';
+      
+      // カンマやタブで例文が分かれている場合のチェック
+      let meaning = rest;
+      let sentence = '';
+      if (rest.includes('\t')) {
+        const parts = rest.split('\t');
+        meaning = parts[0];
+        sentence = parts[1];
+      } else if (rest.includes(',')) {
+        const parts = rest.split(',');
+        meaning = parts[0];
+        sentence = parts[1];
       }
+
+      currentEntry = {
+        rawWord: wordCandidate.toUpperCase(),
+        rawMeaning: meaning.trim(),
+        rawSentence: sentence.trim() || undefined,
+      };
+      entries.push(currentEntry);
+    } else if (currentEntry) {
+      // 直前の単語エントリの日本語訳の続きとして結合
+      currentEntry.rawMeaning += (currentEntry.rawMeaning ? ' ' : '') + cleanLine;
     }
+  }
 
-    // 単語の整形 (先頭番号削除・記号除去)
-    word = word.replace(/^\d+[\.\s)]*/, '').trim().toUpperCase();
-    japanese = japanese.trim();
+  // 重複の除去と整形
+  const wordMap = new Map<string, WordItem>();
 
-    if (word && /^[A-Z]{2,}$/.test(word)) {
+  entries.forEach((entry, index) => {
+    const word = entry.rawWord.toUpperCase().replace(/[^A-Z]/g, '');
+    if (word.length < 2) return;
+
+    let japanese = entry.rawMeaning.replace(/\s+/g, ' ').trim();
+    if (!japanese) japanese = '（訳未指定）';
+
+    // 既に登録されている場合、より長い/詳しい日本語訳を採用
+    const existing = wordMap.get(word);
+    if (!existing || existing.japanese.length < japanese.length) {
       const generated = generateSentenceForWord(word, japanese);
-      items.push({
+      wordMap.set(word, {
         id: `extracted-${Date.now()}-${index}`,
         word,
-        japanese: japanese || generated.japanese,
-        sentence: sentence || generated.sentence,
+        japanese: japanese !== '（訳未指定）' ? japanese : generated.japanese,
+        sentence: entry.rawSentence || generated.sentence,
       });
     }
   });
 
-  return items;
+  return Array.from(wordMap.values());
 }
 
 /**
@@ -96,11 +115,11 @@ export async function parseCsvFile(file: File): Promise<WordItem[]> {
           let japanese = row['Japanese'] || row['japanese'] || row['日本語訳'] || row['日本語'] || row['意味'] || row[keys[1]] || '';
           let sentence = row['Sentence'] || row['sentence'] || row['例文'] || row[keys[2]] || '';
 
-          word = String(word).trim().toUpperCase();
+          word = String(word).trim().toUpperCase().replace(/[^A-Z]/g, '');
           japanese = String(japanese).trim();
           sentence = String(sentence).trim();
 
-          if (word && /^[A-Z]{2,}$/.test(word)) {
+          if (word && word.length >= 2) {
             const generated = generateSentenceForWord(word, japanese);
             items.push({
               id: `csv-${Date.now()}-${idx}`,
@@ -136,11 +155,11 @@ export async function parseExcelFile(file: File): Promise<WordItem[]> {
     let japanese = row['Japanese'] || row['japanese'] || row['日本語訳'] || row['日本語'] || row['意味'] || row[keys[1]] || '';
     let sentence = row['Sentence'] || row['sentence'] || row['例文'] || row[keys[2]] || '';
 
-    word = String(word).trim().toUpperCase();
+    word = String(word).trim().toUpperCase().replace(/[^A-Z]/g, '');
     japanese = String(japanese).trim();
     sentence = String(sentence).trim();
 
-    if (word && /^[A-Z]{2,}$/.test(word)) {
+    if (word && word.length >= 2) {
       const generated = generateSentenceForWord(word, japanese);
       items.push({
         id: `excel-${Date.now()}-${idx}`,
@@ -159,16 +178,40 @@ export async function parseExcelFile(file: File): Promise<WordItem[]> {
  */
 export async function parsePdfFile(file: File): Promise<WordItem[]> {
   const arrayBuffer = await file.arrayBuffer();
-  const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-  const pdfDoc = await loadingTask.promise;
+  
+  // PDFドキュメントの読み込み
+  const loadingTask = pdfjsLib.getDocument({
+    data: arrayBuffer,
+    useSystemFonts: true,
+  });
 
+  const pdfDoc = await loadingTask.promise;
   let fullText = '';
 
   for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
     const page = await pdfDoc.getPage(pageNum);
     const textContent = await page.getTextContent();
-    const pageText = textContent.items.map((item: any) => item.str).join(' ');
-    fullText += pageText + '\n';
+    
+    // アイテムを行・位置を考慮してテキスト化
+    let lastY: number | null = null;
+    let pageText = '';
+
+    for (const item of textContent.items as any[]) {
+      if (!item.str) continue;
+      
+      const currentY = item.transform ? item.transform[5] : null;
+      if (lastY !== null && currentY !== null && Math.abs(currentY - lastY) > 4) {
+        // Y座標が変化したら改行
+        pageText += '\n';
+      } else if (pageText.length > 0 && !pageText.endsWith(' ') && !pageText.endsWith('\n')) {
+        pageText += ' ';
+      }
+      
+      pageText += item.str;
+      lastY = currentY;
+    }
+
+    fullText += pageText + '\n\n';
   }
 
   return parseTextContentToWords(fullText);

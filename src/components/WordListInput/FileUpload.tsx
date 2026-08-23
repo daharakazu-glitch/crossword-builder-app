@@ -51,9 +51,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onAddMultipleWords }) =>
         onAddMultipleWords(words);
         setStatusMessage(`✅ 「${file.name}」から ${words.length} 件の単語を追加しました！`);
       }
-    } catch (err) {
-      console.error(err);
-      setStatusMessage(`❌ ファイル解析中にエラーが発生しました。`);
+    } catch (err: any) {
+      console.error('File parsing error:', err);
+      setStatusMessage(`❌ ファイル解析エラー: ${err?.message || '形式を読み取れませんでした。'}`);
     } finally {
       setLoading(false);
     }
