@@ -19,7 +19,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   onClose,
 }) => {
   const [title, setTitle] = useState(initialTitle);
-  const [subtitle, setSubtitle] = useState('Date: ____________  Name: ____________');
+  const [subtitle, setSubtitle] = useState('Name: ________________________________');
   const [exporting, setExporting] = useState(false);
 
   const handleTitleChange = (newTitle: string) => {
@@ -114,12 +114,12 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
               />
             </div>
             <div className="form-group">
-              <label>サブタイトル / 日付・名前欄</label>
+              <label>名前欄（日付なし・ワイド表記）</label>
               <input
                 type="text"
                 value={subtitle}
                 onChange={(e) => setSubtitle(e.target.value)}
-                placeholder="例: Date: ________  Name: ________"
+                placeholder="例: Name: ____________________"
               />
             </div>
           </div>
