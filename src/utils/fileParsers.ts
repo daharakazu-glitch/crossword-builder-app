@@ -219,10 +219,6 @@ export function parseTextContentToWords(text: string): WordItem[] {
       continue;
     }
 
-    // いずれにも当てはまらない場合（直前のエントリへの追記またはスキップ）
-    if (entries.length > 0 && hasJapanese(line)) {
-      entries[entries.length - 1].rawMeaning += ' ' + line;
-    }
     i++;
   }
 
@@ -351,7 +347,7 @@ interface PdfTextItem {
 
 /**
  * PDF (.pdf) ファイルのテキスト＆単語抽出
- * 2列テーブル（左: 英単語、右: 例文+日本語訳）および通常レイアウトに対応
+ * 空間座標解析による2列テーブル（左: 英単語、右: 例文+日本語訳）および通常レイアウトに対応
  */
 export async function parsePdfFile(file: File): Promise<WordItem[]> {
   const arrayBuffer = await file.arrayBuffer();
@@ -362,7 +358,7 @@ export async function parsePdfFile(file: File): Promise<WordItem[]> {
   });
 
   const pdfDoc = await loadingTask.promise;
-  let fullStructuredText = '';
+  const allWordItems: WordItem[] = [];
 
   for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
     const page = await pdfDoc.getPage(pageNum);
@@ -374,7 +370,7 @@ export async function parsePdfFile(file: File): Promise<WordItem[]> {
       const x = item.transform ? item.transform[4] : 0;
       const y = item.transform ? item.transform[5] : 0;
       items.push({
-        str: item.str,
+        str: item.str.trim(),
         x,
         y,
         width: item.width || 0,
@@ -384,73 +380,102 @@ export async function parsePdfFile(file: File): Promise<WordItem[]> {
 
     if (items.length === 0) continue;
 
-    // Y座標降順（上から下）にソート
-    items.sort((a, b) => b.y - a.y || a.x - b.x);
+    // ページの幅を推定
+    const maxX = Math.max(...items.map((it) => it.x + it.width));
+    const splitX = maxX > 0 ? Math.min(220, maxX * 0.4) : 180;
 
-    // 行ごとにグルーピング (Y座標の差が5pt以内)
-    interface RowGroup {
-      y: number;
-      items: PdfTextItem[];
-    }
-    const rows: RowGroup[] = [];
+    // 左カラム（x < splitX）に存在する英単語アイテムを抽出（ヘッダー等は除外）
+    const leftWordItems = items
+      .filter((it) => {
+        if (it.x >= splitX) return false;
+        const clean = it.str.replace(/[^A-Za-z]/g, '');
+        if (clean.length < 2) return false;
+        if (isHeaderOrIgnoredLine(it.str)) return false;
+        return isEnglishWord(clean);
+      })
+      .sort((a, b) => b.y - a.y);
 
-    for (const item of items) {
-      const matchingRow = rows.find((r) => Math.abs(r.y - item.y) <= 5);
-      if (matchingRow) {
-        matchingRow.items.push(item);
-      } else {
-        rows.push({ y: item.y, items: [item] });
-      }
-    }
+    // 2列テーブル形式（左側に英単語が2個以上並んでいる場合）
+    if (leftWordItems.length >= 2) {
+      for (let wIdx = 0; wIdx < leftWordItems.length; wIdx++) {
+        const curWordItem = leftWordItems[wIdx];
+        const prevWordItem = wIdx > 0 ? leftWordItems[wIdx - 1] : null;
+        const nextWordItem = wIdx < leftWordItems.length - 1 ? leftWordItems[wIdx + 1] : null;
 
-    // 各行内のアイテムをX座標昇順（左から右）にソート
-    rows.forEach((r) => r.items.sort((a, b) => a.x - b.x));
+        // 上下の行領域境界を計算
+        const topY = prevWordItem ? (curWordItem.y + prevWordItem.y) / 2 : curWordItem.y + 40;
+        const bottomY = nextWordItem ? (curWordItem.y + nextWordItem.y) / 2 : curWordItem.y - 40;
 
-    // 2列レイアウト判定（左側に英単語、右側に問題・和訳があるかチェック）
-    let hasLeftColumnWords = 0;
-    const splitX = 180; // 一般的なA4幅(595pt)での左カラム境界目安
+        // この行領域内にある右カラムアイテムを収集
+        const cellItems = items
+          .filter((it) => it.x >= splitX - 10 && it.y <= topY && it.y >= bottomY && !isHeaderOrIgnoredLine(it.str))
+          .sort((a, b) => b.y - a.y || a.x - b.x);
 
-    rows.forEach((r) => {
-      const leftItems = r.items.filter((it) => it.x < splitX);
-      const leftText = leftItems.map((it) => it.str).join(' ').trim();
-      if (isEnglishWord(leftText.replace(/[^A-Za-z]/g, ''))) {
-        hasLeftColumnWords++;
-      }
-    });
+        // Y座標ごとにグループ化して行を構成
+        const lineGroups: { y: number; text: string }[] = [];
+        for (const cItem of cellItems) {
+          const matchingLine = lineGroups.find((g) => Math.abs(g.y - cItem.y) <= 4);
+          if (matchingLine) {
+            matchingLine.text += ' ' + cItem.str;
+          } else {
+            lineGroups.push({ y: cItem.y, text: cItem.str });
+          }
+        }
+        lineGroups.sort((a, b) => b.y - a.y);
 
-    if (hasLeftColumnWords >= 2) {
-      // 2列テーブル形式として整形
-      let pageText = '';
-      for (const r of rows) {
-        const leftItems = r.items.filter((it) => it.x < splitX);
-        const rightItems = r.items.filter((it) => it.x >= splitX);
+        let sentence = '';
+        let japanese = '';
 
-        const leftStr = leftItems.map((it) => it.str).join(' ').trim();
-        const rightStr = rightItems.map((it) => it.str).join(' ').trim();
+        for (const g of lineGroups) {
+          const t = g.text.trim();
+          if (hasJapanese(t)) {
+            japanese += (japanese ? ' ' : '') + t;
+          } else if (t.length > 0) {
+            sentence += (sentence ? ' ' : '') + t;
+          }
+        }
 
-        if (leftStr && rightStr) {
-          pageText += `${leftStr}\t${rightStr}\n`;
-        } else if (leftStr) {
-          pageText += `${leftStr}\n`;
-        } else if (rightStr) {
-          pageText += `${rightStr}\n`;
+        const word = curWordItem.str.replace(/[^A-Za-z]/g, '').toUpperCase();
+        if (word.length >= 2) {
+          const generated = generateSentenceForWord(word, japanese);
+          allWordItems.push({
+            id: `pdf-${Date.now()}-${pageNum}-${wIdx}`,
+            word,
+            japanese: japanese || generated.japanese,
+            sentence: sentence || generated.sentence,
+          });
         }
       }
-      fullStructuredText += pageText + '\n\n';
     } else {
-      // 通常の行テキスト化
+      // 通常のテキストレイアウト解析
+      items.sort((a, b) => b.y - a.y || a.x - b.x);
       let pageText = '';
-      for (const r of rows) {
-        const rowStr = r.items.map((it) => it.str).join(' ').trim();
-        if (rowStr) {
-          pageText += rowStr + '\n';
+      let lastY: number | null = null;
+
+      for (const item of items) {
+        if (lastY !== null && Math.abs(item.y - lastY) > 5) {
+          pageText += '\n';
+        } else if (pageText.length > 0 && !pageText.endsWith('\n') && !pageText.endsWith(' ')) {
+          pageText += ' ';
         }
+        pageText += item.str;
+        lastY = item.y;
       }
-      fullStructuredText += pageText + '\n\n';
+
+      const pageWords = parseTextContentToWords(pageText);
+      allWordItems.push(...pageWords);
     }
   }
 
-  return parseTextContentToWords(fullStructuredText);
+  // 重複除去
+  const uniqueMap = new Map<string, WordItem>();
+  for (const item of allWordItems) {
+    if (!uniqueMap.has(item.word)) {
+      uniqueMap.set(item.word, item);
+    }
+  }
+
+  return Array.from(uniqueMap.values());
 }
 
 /**
