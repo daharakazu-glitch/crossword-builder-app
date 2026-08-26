@@ -56,7 +56,7 @@ export const HintStyleSelector: React.FC<HintStyleSelectorProps> = ({
             />
             <div className="hint-card-content">
               <span className="hint-title">① 英文穴埋め ＋ 日本語訳</span>
-              <span className="hint-preview">例: I eat an ____. (私はりんごを食べます)</span>
+              <span className="hint-preview">例: I eat an (　　　　). (私はりんごを食べます)</span>
             </div>
           </label>
 
@@ -70,7 +70,7 @@ export const HintStyleSelector: React.FC<HintStyleSelectorProps> = ({
             />
             <div className="hint-card-content">
               <span className="hint-title">② 英文穴埋めのみ</span>
-              <span className="hint-preview">例: I eat an ____.</span>
+              <span className="hint-preview">例: I eat an (　　　　).</span>
             </div>
           </label>
 

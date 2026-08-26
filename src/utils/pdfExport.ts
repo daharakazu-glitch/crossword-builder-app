@@ -3,18 +3,25 @@ import html2canvas from 'html2canvas';
 import type { HintStyle, PlacedWord } from '../types/crossword';
 
 export function formatClueText(word: PlacedWord, hintStyle: HintStyle): string {
-  // 英文穴埋め処理
   const cleanWord = word.word.toUpperCase().replace(/[^A-Z]/g, '');
-  const underline = '____';
-  let sentenceClue = word.sentence || '';
+  // 間隔を十分に広げたカッコ (全角空白4文字分の見やすい幅)
+  const wideBlank = '(　　　　)';
+  let sentenceClue = (word.sentence || '').trim();
 
   if (sentenceClue) {
-    // 例文内の単語を穴埋めアンダーラインに置換
+    // 1. 既存の狭いカッコ ( ) や （ ） や [ ] や アンダーライン ___ を広めのカッコに置換
+    sentenceClue = sentenceClue
+      .replace(/\([\s\u3000]*\)/g, wideBlank)
+      .replace(/（[\s\u3000]*）/g, wideBlank)
+      .replace(/\[[\s\u3000]*\]/g, wideBlank)
+      .replace(/_{2,}/g, wideBlank);
+
+    // 2. 例文内に単語そのものが含まれている場合は (　　　　) に置換
     const regex = new RegExp(`\\b${cleanWord}\\b`, 'gi');
-    sentenceClue = sentenceClue.replace(regex, underline);
+    sentenceClue = sentenceClue.replace(regex, wideBlank);
   } else {
-    // 例文がない場合のデフォルト穴埋めテキスト
-    sentenceClue = `[ ${underline} ]`;
+    // 例文がない場合のデフォルト
+    sentenceClue = wideBlank;
   }
 
   switch (hintStyle) {
@@ -78,7 +85,7 @@ export async function exportCrosswordToPdf(options: ExportPdfOptions): Promise<v
 
   pdf.addImage(imgData, 'PNG', posX, posY, printWidth, printHeight);
 
-  const filename = `${options.title}_${options.isAnswerKey ? '解答' : '問題'}.pdf`;
+  const filename = `${options.title}.pdf`;
   pdf.save(filename);
 }
 
