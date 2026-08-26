@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Download, CheckSquare, Printer, Sparkles } from 'lucide-react';
 import type { CrosswordGrid, HintStyle } from '../types/crossword';
-import { exportCrosswordToPdf, formatClueText } from '../utils/pdfExport';
+import { exportCrosswordToPdf, exportBothCrosswordsToPdf, formatClueText } from '../utils/pdfExport';
 
 interface PdfExportModalProps {
   grid: CrosswordGrid;
@@ -25,7 +25,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     setExporting(true);
     try {
       await exportCrosswordToPdf({
-        title,
+        title: `${title}_問題`,
         subtitle,
         hintStyle,
         isAnswerKey: false,
@@ -58,8 +58,21 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   };
 
   const handleDownloadBoth = async () => {
-    await handleDownloadQuestionPdf();
-    await handleDownloadAnswerPdf();
+    setExporting(true);
+    try {
+      await exportBothCrosswordsToPdf({
+        title,
+        subtitle,
+        hintStyle,
+        questionElementId: 'pdf-print-area-question',
+        answerElementId: 'pdf-print-area-answer',
+      });
+    } catch (err) {
+      console.error(err);
+      alert('PDFの出力中にエラーが発生しました。');
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
