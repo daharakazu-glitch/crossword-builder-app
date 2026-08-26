@@ -11,9 +11,10 @@ import {
 
 interface FileUploadProps {
   onAddMultipleWords: (words: WordItem[]) => void;
+  onSetTitle?: (title: string) => void;
 }
 
-export const FileUpload: React.FC<FileUploadProps> = ({ onAddMultipleWords }) => {
+export const FileUpload: React.FC<FileUploadProps> = ({ onAddMultipleWords, onSetTitle }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -49,6 +50,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onAddMultipleWords }) =>
         setStatusMessage(`⚠️ 「${file.name}」から英単語を抽出できませんでした。`);
       } else {
         onAddMultipleWords(words);
+        const cleanName = file.name
+          .replace(/\.[^/.]+$/, '')
+          .replace(/[・\-_]解答リスト.*$/i, '')
+          .replace(/[・\-_]問題.*$/i, '')
+          .trim();
+        if (cleanName && onSetTitle) {
+          onSetTitle(`${cleanName} 英単語クロスワード`);
+        }
         setStatusMessage(`✅ 「${file.name}」から ${words.length} 件の単語を追加しました！`);
       }
     } catch (err: any) {

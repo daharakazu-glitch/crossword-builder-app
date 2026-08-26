@@ -23,6 +23,7 @@ export const App: React.FC = () => {
   const [hintStyle, setHintStyle] = useState<HintStyle>('sentence_ja');
   const [gridSize, setGridSize] = useState<number>(20);
   const [grid, setGrid] = useState<CrosswordGrid>(() => generateCrossword(INITIAL_SAMPLE_WORDS, 20));
+  const [puzzleTitle, setPuzzleTitle] = useState<string>('英単語クロスワードパズル');
 
   // インタラクティブ解答状態
   const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
@@ -345,7 +346,10 @@ export const App: React.FC = () => {
               />
             )}
             {inputTab === 'file' && (
-              <FileUpload onAddMultipleWords={handleAddMultipleWords} />
+              <FileUpload
+                onAddMultipleWords={handleAddMultipleWords}
+                onSetTitle={setPuzzleTitle}
+              />
             )}
             {inputTab === 'ocr' && (
               <ImageOCRUpload onAddMultipleWords={handleAddMultipleWords} />
@@ -369,6 +373,8 @@ export const App: React.FC = () => {
             onSelectHintStyle={setHintStyle}
             gridSize={gridSize}
             onChangeGridSize={setGridSize}
+            puzzleTitle={puzzleTitle}
+            onUpdateTitle={setPuzzleTitle}
             onRegenerate={handleRegenerate}
             onOpenPdfModal={() => setIsPdfModalOpen(true)}
           />
@@ -412,6 +418,8 @@ export const App: React.FC = () => {
         <PdfExportModal
           grid={grid}
           hintStyle={hintStyle}
+          initialTitle={puzzleTitle}
+          onUpdateTitle={setPuzzleTitle}
           onClose={() => setIsPdfModalOpen(false)}
         />
       )}

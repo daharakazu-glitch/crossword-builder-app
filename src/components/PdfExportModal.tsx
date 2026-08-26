@@ -1,22 +1,33 @@
 import React, { useState } from 'react';
-import { X, Download, CheckSquare, Printer, Sparkles } from 'lucide-react';
+import { X, Download, CheckSquare, Printer, Sparkles, Type } from 'lucide-react';
 import type { CrosswordGrid, HintStyle } from '../types/crossword';
 import { exportCrosswordToPdf, exportBothCrosswordsToPdf, formatClueText } from '../utils/pdfExport';
 
 interface PdfExportModalProps {
   grid: CrosswordGrid;
   hintStyle: HintStyle;
+  initialTitle?: string;
+  onUpdateTitle?: (title: string) => void;
   onClose: () => void;
 }
 
 export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   grid,
   hintStyle,
+  initialTitle = '英単語クロスワードパズル',
+  onUpdateTitle,
   onClose,
 }) => {
-  const [title, setTitle] = useState('英単語クロスワードパズル');
+  const [title, setTitle] = useState(initialTitle);
   const [subtitle, setSubtitle] = useState('Date: ____________  Name: ____________');
   const [exporting, setExporting] = useState(false);
+
+  const handleTitleChange = (newTitle: string) => {
+    setTitle(newTitle);
+    if (onUpdateTitle) {
+      onUpdateTitle(newTitle);
+    }
+  };
 
   const acrossClues = grid.placedWords.filter((w) => w.direction === 'across');
   const downClues = grid.placedWords.filter((w) => w.direction === 'down');
@@ -90,16 +101,20 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         <div className="modal-body">
           <div className="pdf-config-form">
             <div className="form-group">
-              <label>タイトル</label>
+              <label>
+                <Type size={15} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
+                PDFタイトル（自由に入力・変更できます）
+              </label>
               <input
                 type="text"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="例: 中学英単語クロスワード #1"
+                onChange={(e) => handleTitleChange(e.target.value)}
+                placeholder="例: 711～755確認テスト⑦ 英単語クロスワード"
+                className="pdf-title-input"
               />
             </div>
             <div className="form-group">
-              <label>サブタイトル / 名前欄</label>
+              <label>サブタイトル / 日付・名前欄</label>
               <input
                 type="text"
                 value={subtitle}
@@ -111,33 +126,34 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
           <div className="pdf-actions-bar">
             <button
+              className="btn btn-outline-purple"
+              onClick={handleDownloadBoth}
+              disabled={exporting}
+              style={{ fontWeight: 'bold' }}
+            >
+              <Sparkles size={16} /> 【推奨】問題＋解答セット (1つのPDF) をダウンロード
+            </button>
+            <button
               className="btn btn-primary"
               onClick={handleDownloadQuestionPdf}
               disabled={exporting}
             >
-              <Download size={16} /> 【問題用紙】PDFをダウンロード
+              <Download size={16} /> 【問題用紙のみ】PDFダウンロード
             </button>
             <button
               className="btn btn-secondary"
               onClick={handleDownloadAnswerPdf}
               disabled={exporting}
             >
-              <CheckSquare size={16} /> 【解答用紙】PDFをダウンロード
-            </button>
-            <button
-              className="btn btn-outline-purple"
-              onClick={handleDownloadBoth}
-              disabled={exporting}
-            >
-              <Sparkles size={16} /> 両方をまとめて出力
+              <CheckSquare size={16} /> 【解答用紙のみ】PDFダウンロード
             </button>
           </div>
 
           <p className="pdf-preview-notice">
-            ※以下の領域がそのままA4サイズのPDFとして出力されます。
+            ※以下の内容がA4サイズちょうど1枚ずつ印刷用PDFとして出力されます。解答欄の英単語は小文字（例: [soil]）で記載されます。
           </p>
 
-          {/* 印刷用プレビューエリア (隠しレンダリング / プレビュー表示) */}
+          {/* 印刷用プレビューエリア */}
           <div className="pdf-preview-scroll">
             {/* 問題用紙プレビュー */}
             <div id="pdf-print-area-question" className="pdf-print-sheet">
@@ -234,7 +250,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                   <ol className="sheet-clues-list">
                     {acrossClues.map((w) => (
                       <li key={`pdf-a-across-${w.id}`}>
-                        <strong>{w.number}.</strong> [{w.word}] - {formatClueText(w, hintStyle)}
+                        <strong>{w.number}.</strong> <span style={{ fontWeight: 'bold', color: '#1e293b' }}>[{w.word.toLowerCase()}]</span> - {formatClueText(w, hintStyle)}
                       </li>
                     ))}
                   </ol>
@@ -244,7 +260,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                   <ol className="sheet-clues-list">
                     {downClues.map((w) => (
                       <li key={`pdf-a-down-${w.id}`}>
-                        <strong>{w.number}.</strong> [{w.word}] - {formatClueText(w, hintStyle)}
+                        <strong>{w.number}.</strong> <span style={{ fontWeight: 'bold', color: '#1e293b' }}>[{w.word.toLowerCase()}]</span> - {formatClueText(w, hintStyle)}
                       </li>
                     ))}
                   </ol>

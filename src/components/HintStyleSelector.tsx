@@ -1,5 +1,5 @@
 import React from 'react';
-import { HelpCircle, Shuffle, LayoutGrid, FileCheck } from 'lucide-react';
+import { HelpCircle, Shuffle, LayoutGrid, FileCheck, Type } from 'lucide-react';
 import type { HintStyle } from '../types/crossword';
 
 interface HintStyleSelectorProps {
@@ -7,6 +7,8 @@ interface HintStyleSelectorProps {
   onSelectHintStyle: (style: HintStyle) => void;
   gridSize: number;
   onChangeGridSize: (size: number) => void;
+  puzzleTitle: string;
+  onUpdateTitle: (title: string) => void;
   onRegenerate: () => void;
   onOpenPdfModal: () => void;
 }
@@ -16,11 +18,27 @@ export const HintStyleSelector: React.FC<HintStyleSelectorProps> = ({
   onSelectHintStyle,
   gridSize,
   onChangeGridSize,
+  puzzleTitle,
+  onUpdateTitle,
   onRegenerate,
   onOpenPdfModal,
 }) => {
   return (
     <div className="config-card">
+      {/* タイトル設定バー */}
+      <div className="puzzle-title-bar">
+        <label className="title-label">
+          <Type size={16} /> タイトル:
+        </label>
+        <input
+          type="text"
+          className="puzzle-title-input"
+          value={puzzleTitle}
+          onChange={(e) => onUpdateTitle(e.target.value)}
+          placeholder="例: 711～755確認テスト⑦ 英単語クロスワード"
+        />
+      </div>
+
       <div className="config-section">
         <h3 className="section-title">
           <HelpCircle size={18} /> ヒント表示スタイルの選択
