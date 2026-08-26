@@ -43,9 +43,9 @@ export async function exportCrosswordToPdf(options: ExportPdfOptions): Promise<v
     throw new Error('PDF生成対象の要素が見つかりませんでした。');
   }
 
-  // キャンバスを高画質で生成
+  // キャンバスを高解像度で生成
   const canvas = await html2canvas(element, {
-    scale: 2, // 高解像度
+    scale: 2.5, // より鮮明な高解像度
     useCORS: true,
     logging: false,
     backgroundColor: '#ffffff',
@@ -53,25 +53,28 @@ export async function exportCrosswordToPdf(options: ExportPdfOptions): Promise<v
 
   const imgData = canvas.toDataURL('image/png');
   const pdf = new jsPDF('p', 'mm', 'a4');
-  const pdfWidth = pdf.internal.pageSize.getWidth();
-  const pdfHeight = pdf.internal.pageSize.getHeight();
+  const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
+  const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
 
-  const imgWidth = pdfWidth - 20; // 左右10mmのマージン
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  const margin = 8; // 8mm余白
+  const maxPrintWidth = pdfWidth - margin * 2; // 194mm
+  const maxPrintHeight = pdfHeight - margin * 2; // 281mm
 
-  let heightLeft = imgHeight;
-  let position = 10; // 上10mmマージン
+  let printWidth = maxPrintWidth;
+  let printHeight = (canvas.height * printWidth) / canvas.width;
 
-  pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-  heightLeft -= pdfHeight;
-
-  // 複数ページに渡る場合の処理
-  while (heightLeft > 0) {
-    position = heightLeft - imgHeight;
-    pdf.addPage();
-    pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-    heightLeft -= pdfHeight;
+  // 1枚に確実に収まるよう縦横比を維持して自動スケール調整
+  if (printHeight > maxPrintHeight) {
+    const scale = maxPrintHeight / printHeight;
+    printHeight = maxPrintHeight;
+    printWidth = printWidth * scale;
   }
+
+  const posX = (pdfWidth - printWidth) / 2; // 水平中央
+  const posY = margin + (maxPrintHeight - printHeight) / 2; // 垂直中央
+
+  // 1ページのみ出力（複数ページへのあふれを防止）
+  pdf.addImage(imgData, 'PNG', posX, posY, printWidth, printHeight);
 
   const filename = `${options.title}_${options.isAnswerKey ? '解答' : '問題'}.pdf`;
   pdf.save(filename);
