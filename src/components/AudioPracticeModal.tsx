@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { X, Volume2, Mic, Square, Play, Sparkles, Award, VolumeX } from 'lucide-react';
 import type { PlacedWord } from '../types/crossword';
 import { speakText, stopSpeaking, createSpeechRecognizer, calculateSimilarity } from '../utils/speech';
+import { getCompleteSentence } from '../utils/sentenceUtils';
 
 interface AudioPracticeModalProps {
   placedWords: PlacedWord[];
@@ -138,9 +139,7 @@ export const AudioPracticeModal: React.FC<AudioPracticeModalProps> = ({
 
           <div className="practice-list">
             {placedWords.map((item) => {
-              const fullText = item.sentence
-                ? item.sentence.replace(/____/g, item.word)
-                : `${item.word}.`;
+              const fullText = getCompleteSentence(item.sentence, item.word);
 
               const isPlaying = playingId === item.id;
               const isRecording = recordingId === item.id;

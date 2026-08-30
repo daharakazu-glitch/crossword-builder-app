@@ -30,6 +30,8 @@ export const App: React.FC = () => {
   const [activeDirection, setActiveDirection] = useState<'across' | 'down'>('across');
   const [selectedWordId, setSelectedWordId] = useState<string | null>(null);
   const [showAnswers, setShowAnswers] = useState<boolean>(false);
+  const [showFirstLetters, setShowFirstLetters] = useState<boolean>(false);
+  const [isCompleted, setIsCompleted] = useState<boolean>(false);
 
   // モーダル状態
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
@@ -43,6 +45,7 @@ export const App: React.FC = () => {
     setGrid(newGrid);
     setActiveCell(null);
     setSelectedWordId(null);
+    setIsCompleted(false);
   }, [words, gridSize]);
 
   useEffect(() => {
@@ -273,7 +276,21 @@ export const App: React.FC = () => {
       return { ...prevGrid, cells: newCells };
     });
 
+    if (isAllCorrect) {
+      setIsCompleted(true);
+    }
+
     return isAllCorrect;
+  };
+
+  // 解答表示トグル
+  const handleToggleShowAnswers = () => {
+    const nextShow = !showAnswers;
+    setShowAnswers(nextShow);
+    if (nextShow) {
+      // 解答全表示時は音声練習もアンロック
+      setIsCompleted(true);
+    }
   };
 
   // 1文字ヒント表示
@@ -304,6 +321,7 @@ export const App: React.FC = () => {
       );
       return { ...prevGrid, cells: newCells };
     });
+    setIsCompleted(false);
   };
 
   return (
@@ -382,21 +400,24 @@ export const App: React.FC = () => {
           <div className="crossword-preview-section">
             <InteractiveControls
               showAnswers={showAnswers}
-              onToggleShowAnswers={() => setShowAnswers(!showAnswers)}
+              onToggleShowAnswers={handleToggleShowAnswers}
               onCheckAnswers={handleCheckAnswers}
               onHintOneLetter={handleHintOneLetter}
               onResetUserInputs={handleResetUserInputs}
+              isCompleted={isCompleted}
+              showFirstLetters={showFirstLetters}
+              onToggleFirstLetters={() => setShowFirstLetters(!showFirstLetters)}
               onOpenAudioPractice={() => setIsAudioModalOpen(true)}
             />
 
             <div className="puzzle-workspace">
               <Board
                 cells={grid.cells}
-                placedWords={grid.placedWords}
                 activeCell={activeCell}
                 activeDirection={activeDirection}
                 selectedWordId={selectedWordId}
                 showAnswers={showAnswers}
+                showFirstLetters={showFirstLetters}
                 onCellClick={handleCellClick}
                 onCellInput={handleCellInput}
                 onKeyDownNav={handleKeyDownNav}
@@ -419,6 +440,7 @@ export const App: React.FC = () => {
           grid={grid}
           hintStyle={hintStyle}
           initialTitle={puzzleTitle}
+          initialShowFirstLetters={showFirstLetters}
           onUpdateTitle={setPuzzleTitle}
           onClose={() => setIsPdfModalOpen(false)}
         />

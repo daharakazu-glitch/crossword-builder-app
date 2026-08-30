@@ -7,6 +7,7 @@ interface PdfExportModalProps {
   grid: CrosswordGrid;
   hintStyle: HintStyle;
   initialTitle?: string;
+  initialShowFirstLetters?: boolean;
   onUpdateTitle?: (title: string) => void;
   onClose: () => void;
 }
@@ -15,11 +16,13 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   grid,
   hintStyle,
   initialTitle = '英単語クロスワードパズル',
+  initialShowFirstLetters = false,
   onUpdateTitle,
   onClose,
 }) => {
   const [title, setTitle] = useState(initialTitle);
   const [subtitle, setSubtitle] = useState('Name: ________________________________');
+  const [showFirstLetters, setShowFirstLetters] = useState(initialShowFirstLetters);
   const [exporting, setExporting] = useState(false);
 
   const handleTitleChange = (newTitle: string) => {
@@ -122,6 +125,17 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 placeholder="例: Name: ____________________"
               />
             </div>
+            <div className="form-group checkbox-group" style={{ gridColumn: '1 / -1' }}>
+              <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600, color: 'var(--text-primary)' }}>
+                <input
+                  type="checkbox"
+                  checked={showFirstLetters}
+                  onChange={(e) => setShowFirstLetters(e.target.checked)}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <span>🔤 各単語の頭文字を盤面に印字する（難易度を下げて初級者向けにする）</span>
+              </label>
+            </div>
           </div>
 
           <div className="pdf-actions-bar">
@@ -170,18 +184,27 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                   }}
                 >
                   {grid.cells.map((row) =>
-                    row.map((cell, cIdx) => (
-                      <div
-                        key={`pdf-q-${cell.row}-${cIdx}`}
-                        className={`sheet-cell ${cell.isBlack ? 'black' : 'white'}`}
-                      >
-                        {(cell.acrossNumber || cell.downNumber) && (
-                          <span className="sheet-cell-num">
-                            {cell.acrossNumber || cell.downNumber}
-                          </span>
-                        )}
-                      </div>
-                    ))
+                    row.map((cell, cIdx) => {
+                      const isStartCell = Boolean(cell.acrossNumber || cell.downNumber);
+                      return (
+                        <div
+                          key={`pdf-q-${cell.row}-${cIdx}`}
+                          className={`sheet-cell ${cell.isBlack ? 'black' : 'white'}`}
+                        >
+                          {isStartCell && (
+                            <span className="sheet-cell-num">
+                              {cell.acrossNumber || cell.downNumber}
+                            </span>
+                          )}
+                          {/* 頭文字ヒント印字 */}
+                          {!cell.isBlack && showFirstLetters && isStartCell && (
+                            <span className="sheet-cell-first-letter">
+                              {cell.letter}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               </div>

@@ -1,13 +1,13 @@
 import React, { useEffect, useRef } from 'react';
-import type { CellData, PlacedWord } from '../types/crossword';
+import type { CellData } from '../types/crossword';
 
 interface BoardProps {
   cells: CellData[][];
-  placedWords: PlacedWord[];
   activeCell: { row: number; col: number } | null;
   activeDirection: 'across' | 'down';
   selectedWordId: string | null;
   showAnswers: boolean;
+  showFirstLetters: boolean;
   onCellClick: (row: number, col: number) => void;
   onCellInput: (row: number, col: number, letter: string) => void;
   onKeyDownNav: (e: React.KeyboardEvent) => void;
@@ -19,6 +19,7 @@ export const Board: React.FC<BoardProps> = ({
   activeDirection,
   selectedWordId,
   showAnswers,
+  showFirstLetters,
   onCellClick,
   onCellInput,
   onKeyDownNav,
@@ -65,6 +66,8 @@ export const Board: React.FC<BoardProps> = ({
               ((activeDirection === 'across' && cell.acrossWordId === selectedWordId) ||
                 (activeDirection === 'down' && cell.downWordId === selectedWordId));
 
+            const isStartCell = Boolean(cell.acrossNumber || cell.downNumber);
+            const shouldShowFirstLetter = showFirstLetters && isStartCell && !showAnswers;
             const displayLetter = showAnswers ? cell.letter : cell.userLetter;
 
             let statusClass = '';
@@ -77,13 +80,20 @@ export const Board: React.FC<BoardProps> = ({
                 key={`cell-${r}-${c}`}
                 className={`cell white-cell ${isActive ? 'active' : ''} ${
                   isSelectedWord ? 'highlight' : ''
-                } ${statusClass}`}
+                } ${statusClass} ${shouldShowFirstLetter ? 'has-first-letter' : ''}`}
                 onClick={() => onCellClick(r, c)}
               >
                 {/* マス目のナンバリング (Across / Down の開始セル番号) */}
-                {(cell.acrossNumber || cell.downNumber) && (
+                {isStartCell && (
                   <span className="cell-number">
                     {cell.acrossNumber || cell.downNumber}
+                  </span>
+                )}
+
+                {/* 頭文字ヒント表示 (未入力時に透かし文字で表示) */}
+                {shouldShowFirstLetter && !displayLetter && (
+                  <span className="cell-first-letter-hint">
+                    {cell.letter}
                   </span>
                 )}
 
@@ -92,11 +102,12 @@ export const Board: React.FC<BoardProps> = ({
                   type="text"
                   maxLength={2} // 全角等の入力判定を許容するため2文字まで受け取り即座に整形
                   value={displayLetter}
+                  placeholder={shouldShowFirstLetter ? cell.letter : ''}
                   onChange={(e) => onCellInput(r, c, e.target.value)}
                   onCompositionEnd={(e) => onCellInput(r, c, e.data)}
                   onFocus={(e) => e.target.select()}
                   onKeyDown={onKeyDownNav}
-                  className="cell-input"
+                  className={`cell-input ${shouldShowFirstLetter && !displayLetter ? 'hint-placeholder' : ''}`}
                   readOnly={showAnswers}
                   autoComplete="off"
                   autoCorrect="off"
