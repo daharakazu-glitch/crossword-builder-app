@@ -482,6 +482,13 @@ export const StudentPlayView: React.FC<StudentPlayViewProps> = ({
         </div>
       </main>
 
+      <footer className="app-footer">
+        <div className="footer-content">
+          <p className="footer-title">Crossword Builder Pro</p>
+          <p className="footer-copyright">® Kazuyuki Harada</p>
+        </div>
+      </footer>
+
       {/* 音声練習モーダル */}
       {isAudioModalOpen && (
         <AudioPracticeModal

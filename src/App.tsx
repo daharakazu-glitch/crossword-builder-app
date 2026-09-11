@@ -516,7 +516,12 @@ export const App: React.FC = () => {
         </section>
       </main>
 
-      {/* PDFダウンロードモーダル */}
+      <footer className="app-footer">
+        <div className="footer-content">
+          <p className="footer-title">Crossword Builder Pro</p>
+          <p className="footer-copyright">® Kazuyuki Harada</p>
+        </div>
+      </footer>
       {isPdfModalOpen && (
         <PdfExportModal
           grid={grid}
