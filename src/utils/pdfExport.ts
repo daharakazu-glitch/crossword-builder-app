@@ -100,7 +100,7 @@ export async function exportCrosswordToPdf(options: ExportPdfOptions): Promise<v
 
   pdf.addImage(imgData, 'PNG', posX, posY, printWidth, printHeight);
 
-  // 逆復元用のパズルメタデータを埋め込み
+  // 逆復元用のパズルメタデータと不可視テキストを埋め込み
   if (options.puzzlePackage) {
     const encoded = encodePuzzlePackage(options.puzzlePackage);
     pdf.setProperties({
@@ -110,6 +110,15 @@ export async function exportCrosswordToPdf(options: ExportPdfOptions): Promise<v
       keywords: `CROSSWORD_DATA:${encoded}`,
       creator: 'Crossword Builder Pro',
     });
+
+    // テキストレイヤーにも不可視文字列として直接埋め込み（OCR不要で100%即時復元可能に）
+    try {
+      pdf.setFontSize(0.5);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text(`CROSSWORD_DATA:${encoded}`, 1, 1);
+    } catch (_e) {
+      // ignore
+    }
   }
 
   const filename = `${options.title}.pdf`;
@@ -187,7 +196,7 @@ export async function exportBothCrosswordsToPdf(options: ExportBothPdfOptions): 
   const posY_A = margin + (maxPrintHeight - printHeightA) / 2;
   pdf.addImage(imgDataA, 'PNG', posX_A, posY_A, printWidthA, printHeightA);
 
-  // 逆復元用のパズルメタデータを埋め込み
+  // 逆復元用のパズルメタデータと不可視テキストを埋め込み
   if (options.puzzlePackage) {
     const encoded = encodePuzzlePackage(options.puzzlePackage);
     pdf.setProperties({
@@ -197,6 +206,18 @@ export async function exportBothCrosswordsToPdf(options: ExportBothPdfOptions): 
       keywords: `CROSSWORD_DATA:${encoded}`,
       creator: 'Crossword Builder Pro',
     });
+
+    try {
+      pdf.setFontSize(0.5);
+      pdf.setTextColor(255, 255, 255);
+      // 1ページ目と2ページ目に埋め込み
+      pdf.setPage(1);
+      pdf.text(`CROSSWORD_DATA:${encoded}`, 1, 1);
+      pdf.setPage(2);
+      pdf.text(`CROSSWORD_DATA:${encoded}`, 1, 1);
+    } catch (_e) {
+      // ignore
+    }
   }
 
   const filename = `${options.title}_問題・解答セット.pdf`;

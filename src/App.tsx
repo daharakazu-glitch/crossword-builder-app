@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { WordItem, HintStyle, CrosswordGrid, PlacedWord, GridTheme, CrosswordPuzzlePackage } from './types/crossword';
 import { INITIAL_SAMPLE_WORDS, PRESET_100_WORDS } from './utils/sampleData';
 import { generateCrossword } from './utils/generator';
@@ -61,6 +61,9 @@ export const App: React.FC = () => {
   const [grid, setGrid] = useState<CrosswordGrid>(() => generateCrossword(INITIAL_SAMPLE_WORDS, 20));
   const [puzzleTitle, setPuzzleTitle] = useState<string>('英単語クロスワードパズル');
 
+  // パズル復元フラグ（自動再生成による上書きを防ぐ）
+  const isRestoredRef = useRef(false);
+
   // インタラクティブ解答状態
   const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
   const [activeDirection, setActiveDirection] = useState<'across' | 'down'>('across');
@@ -86,6 +89,10 @@ export const App: React.FC = () => {
   }, [words, gridSize]);
 
   useEffect(() => {
+    if (isRestoredRef.current) {
+      isRestoredRef.current = false;
+      return;
+    }
     handleRegenerate();
   }, [words, gridSize, handleRegenerate]);
 
@@ -363,6 +370,7 @@ export const App: React.FC = () => {
 
   // PDF等からのパズル完全復元ハンドラ
   const handleRestorePuzzlePackage = (pkg: CrosswordPuzzlePackage) => {
+    isRestoredRef.current = true;
     if (pkg.title) setPuzzleTitle(pkg.title);
     if (pkg.words && pkg.words.length > 0) setWords(pkg.words);
     if (pkg.gridSize) setGridSize(pkg.gridSize);
