@@ -17,7 +17,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenHelp, onLoad100Preset }) =
           <div>
             <h1 className="app-title">
               Crossword Builder <span className="badge-pro">Pro</span>
-              <span className="author-badge">® Kazuyuki Harada</span>
             </h1>
             <p className="app-subtitle">
               最大100語の英単語リストから自動クロスワード生成 & PDF出力
