@@ -798,6 +798,11 @@
   aspect-ratio: 1;
 }
 
+.crossword-grid.theme-ink-saver {
+  background: #cbd5e1;
+  border: 1px solid #94a3b8;
+}
+
 .cell {
   position: relative;
   aspect-ratio: 1;
@@ -806,6 +811,11 @@
 
 .black-cell {
   background: #090d16;
+}
+
+.crossword-grid.theme-ink-saver .black-cell {
+  background-color: #ffffff;
+  background-image: repeating-linear-gradient(45deg, #cbd5e1, #cbd5e1 1.5px, #ffffff 1.5px, #ffffff 7px);
 }
 
 .white-cell {
@@ -1056,6 +1066,11 @@
   max-width: 100%;
 }
 
+.sheet-grid.theme-ink-saver {
+  background: #94a3b8;
+  border: 1.5px solid #64748b;
+}
+
 .sheet-cell {
   position: relative;
   aspect-ratio: 1;
@@ -1063,6 +1078,11 @@
 
 .sheet-cell.black {
   background: #000000;
+}
+
+.sheet-grid.theme-ink-saver .sheet-cell.black {
+  background-color: #ffffff;
+  background-image: repeating-linear-gradient(45deg, #cbd5e1, #cbd5e1 1px, #ffffff 1px, #ffffff 5px);
 }
 
 .sheet-cell.white {

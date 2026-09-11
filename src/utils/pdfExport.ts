@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import type { HintStyle, PlacedWord } from '../types/crossword';
+import type { HintStyle, PlacedWord, CrosswordPuzzlePackage, GridTheme } from '../types/crossword';
 
 export function formatClueText(word: PlacedWord, hintStyle: HintStyle): string {
   const cleanWord = word.word.toUpperCase().replace(/[^A-Z]/g, '');
@@ -36,12 +36,27 @@ export function formatClueText(word: PlacedWord, hintStyle: HintStyle): string {
   }
 }
 
+/**
+ * PDF復元用のパズルデータをBase64エンコード
+ */
+export function encodePuzzlePackage(pkg: CrosswordPuzzlePackage): string {
+  try {
+    const jsonStr = JSON.stringify(pkg);
+    return btoa(unescape(encodeURIComponent(jsonStr)));
+  } catch (e) {
+    console.error('Failed to encode puzzle package:', e);
+    return '';
+  }
+}
+
 interface ExportPdfOptions {
   title: string;
   subtitle?: string;
   hintStyle: HintStyle;
   isAnswerKey: boolean; // 解答用紙かどうか
   elementId: string;    // PDF化対象のDOM要素ID
+  puzzlePackage?: CrosswordPuzzlePackage;
+  theme?: GridTheme;
 }
 
 /**
@@ -85,6 +100,18 @@ export async function exportCrosswordToPdf(options: ExportPdfOptions): Promise<v
 
   pdf.addImage(imgData, 'PNG', posX, posY, printWidth, printHeight);
 
+  // 逆復元用のパズルメタデータを埋め込み
+  if (options.puzzlePackage) {
+    const encoded = encodePuzzlePackage(options.puzzlePackage);
+    pdf.setProperties({
+      title: options.title,
+      subject: options.subtitle || 'English Crossword Puzzle',
+      author: 'Crossword Builder Pro',
+      keywords: `CROSSWORD_DATA:${encoded}`,
+      creator: 'Crossword Builder Pro',
+    });
+  }
+
   const filename = `${options.title}.pdf`;
   pdf.save(filename);
 }
@@ -95,11 +122,12 @@ interface ExportBothPdfOptions {
   hintStyle: HintStyle;
   questionElementId: string;
   answerElementId: string;
+  puzzlePackage?: CrosswordPuzzlePackage;
+  theme?: GridTheme;
 }
 
 /**
  * 2ページPDF (1ページ目: 問題用紙, 2ページ目: 解答用紙) の一括エクスポート
- * ブラウザの複数ダウンロードブロックを回避し、両方を1ファイルとして確実に出力
  */
 export async function exportBothCrosswordsToPdf(options: ExportBothPdfOptions): Promise<void> {
   const qElement = document.getElementById(options.questionElementId);
@@ -158,6 +186,18 @@ export async function exportBothCrosswordsToPdf(options: ExportBothPdfOptions): 
   const posX_A = (pdfWidth - printWidthA) / 2;
   const posY_A = margin + (maxPrintHeight - printHeightA) / 2;
   pdf.addImage(imgDataA, 'PNG', posX_A, posY_A, printWidthA, printHeightA);
+
+  // 逆復元用のパズルメタデータを埋め込み
+  if (options.puzzlePackage) {
+    const encoded = encodePuzzlePackage(options.puzzlePackage);
+    pdf.setProperties({
+      title: options.title,
+      subject: options.subtitle || 'English Crossword Puzzle',
+      author: 'Crossword Builder Pro',
+      keywords: `CROSSWORD_DATA:${encoded}`,
+      creator: 'Crossword Builder Pro',
+    });
+  }
 
   const filename = `${options.title}_問題・解答セット.pdf`;
   pdf.save(filename);

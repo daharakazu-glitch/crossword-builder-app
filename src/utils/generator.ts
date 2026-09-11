@@ -291,6 +291,72 @@ function buildFinalGrid(
   };
 }
 
+/**
+ * 既存の PlacedWord[] から寸分違わず同じ CrosswordGrid (CellData[][]) を完全再構築
+ */
+export function reconstructGridFromPlacedWords(
+  placedWords: PlacedWord[],
+  gridSize: number,
+  unplacedWords: WordItem[] = []
+): CrosswordGrid {
+  const grid: (string | null)[][] = Array.from({ length: gridSize }, () =>
+    Array(gridSize).fill(null)
+  );
+
+  for (const pw of placedWords) {
+    const clean = pw.word.toUpperCase().replace(/[^A-Z]/g, '');
+    for (let i = 0; i < clean.length; i++) {
+      const r = pw.direction === 'across' ? pw.row : pw.row + i;
+      const c = pw.direction === 'across' ? pw.col + i : pw.col;
+      if (r < gridSize && c < gridSize) {
+        grid[r][c] = clean[i];
+      }
+    }
+  }
+
+  const cells: CellData[][] = [];
+  for (let r = 0; r < gridSize; r++) {
+    const rowCells: CellData[] = [];
+    for (let c = 0; c < gridSize; c++) {
+      const letter = grid[r][c];
+      const acrossWord = placedWords.find(
+        (w) =>
+          w.direction === 'across' &&
+          w.row === r &&
+          c >= w.col &&
+          c < w.col + w.word.replace(/[^A-Z]/gi, '').length
+      );
+      const downWord = placedWords.find(
+        (w) =>
+          w.direction === 'down' &&
+          w.col === c &&
+          r >= w.row &&
+          r < w.row + w.word.replace(/[^A-Z]/gi, '').length
+      );
+
+      rowCells.push({
+        row: r,
+        col: c,
+        letter: letter ? letter.toUpperCase() : '',
+        userLetter: '',
+        acrossNumber: acrossWord && acrossWord.row === r && acrossWord.col === c ? acrossWord.number : undefined,
+        downNumber: downWord && downWord.row === r && downWord.col === c ? downWord.number : undefined,
+        acrossWordId: acrossWord?.id,
+        downWordId: downWord?.id,
+        isBlack: letter === null,
+      });
+    }
+    cells.push(rowCells);
+  }
+
+  return {
+    size: gridSize,
+    cells,
+    placedWords: [...placedWords].sort((a, b) => a.number - b.number),
+    unplacedWords,
+  };
+}
+
 function createEmptyGrid(gridSize: number): CrosswordGrid {
   const cells: CellData[][] = Array.from({ length: gridSize }, (_, r) =>
     Array.from({ length: gridSize }, (_, c) => ({

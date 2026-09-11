@@ -1,20 +1,25 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileSpreadsheet, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
-import type { WordItem } from '../../types/crossword';
+import type { WordItem, CrosswordPuzzlePackage } from '../../types/crossword';
 import {
   parseCsvFile,
   parseExcelFile,
-  parsePdfFile,
   parseDocxFile,
   parseTextContentToWords,
 } from '../../utils/fileParsers';
+import { restoreCrosswordFromPdf } from '../../utils/pdfRestore';
 
 interface FileUploadProps {
   onAddMultipleWords: (words: WordItem[]) => void;
   onSetTitle?: (title: string) => void;
+  onRestorePuzzlePackage?: (pkg: CrosswordPuzzlePackage) => void;
 }
 
-export const FileUpload: React.FC<FileUploadProps> = ({ onAddMultipleWords, onSetTitle }) => {
+export const FileUpload: React.FC<FileUploadProps> = ({
+  onAddMultipleWords,
+  onSetTitle,
+  onRestorePuzzlePackage,
+}) => {
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -28,19 +33,38 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onAddMultipleWords, onSe
       let words: WordItem[] = [];
       const ext = file.name.split('.').pop()?.toLowerCase();
 
-      if (ext === 'csv' || ext === 'tsv') {
+      if (ext === 'pdf') {
+        // PDFからのクロスワード逆復元・単語抽出
+        const result = await restoreCrosswordFromPdf(file, (_progress, msg) => {
+          setStatusMessage(msg);
+        });
+
+        if (result.success && result.package && onRestorePuzzlePackage) {
+          onRestorePuzzlePackage(result.package);
+          setStatusMessage(`✨ ${result.message}（タイトル: ${result.package.title || '英単語クロスワード'}）`);
+          return;
+        } else if (result.success && result.words && result.words.length > 0) {
+          onAddMultipleWords(result.words);
+          if (result.title && onSetTitle) {
+            onSetTitle(result.title);
+          }
+          setStatusMessage(`✅ ${result.message}`);
+          return;
+        } else {
+          setStatusMessage(`⚠️ 「${file.name}」からクロスワード情報を復元できませんでした。`);
+          return;
+        }
+      } else if (ext === 'csv' || ext === 'tsv') {
         words = await parseCsvFile(file);
       } else if (ext === 'xlsx' || ext === 'xls') {
         words = await parseExcelFile(file);
-      } else if (ext === 'pdf') {
-        words = await parsePdfFile(file);
       } else if (ext === 'docx') {
         words = await parseDocxFile(file);
       } else if (ext === 'txt') {
         const text = await file.text();
         words = parseTextContentToWords(text);
       } else {
-        alert('サポートされている拡張子: .csv, .xlsx, .pdf, .docx, .txt');
+        alert('サポートされている拡張子: .pdf, .csv, .xlsx, .docx, .txt');
         setLoading(false);
         setStatusMessage(null);
         return;
@@ -111,9 +135,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onAddMultipleWords, onSe
           <FileText className="icon-pdf" size={32} />
         </div>
         <p className="drop-title">
-          スプレッドシート(CSV/Excel), PDF, Word, TXT ファイルをドロップ
+          Excel / CSV / PDF / Word / TXT ファイルをドロップ
         </p>
-        <p className="drop-subtitle">またはクリックしてファイルを選択してください</p>
+        <p className="drop-subtitle">
+          ※作成済みPDFをドロップすると<strong>全く同じクロスワードを自動復元・再編集</strong>できます
+        </p>
 
         {statusMessage && (
           <div className="status-banner">

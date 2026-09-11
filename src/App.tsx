@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { WordItem, HintStyle, CrosswordGrid, PlacedWord } from './types/crossword';
+import type { WordItem, HintStyle, CrosswordGrid, PlacedWord, GridTheme, CrosswordPuzzlePackage } from './types/crossword';
 import { INITIAL_SAMPLE_WORDS, PRESET_100_WORDS } from './utils/sampleData';
 import { generateCrossword } from './utils/generator';
+import { decodeSharedPuzzle } from './utils/shareUtils';
 import { Header } from './components/Header';
 import { ManualInput } from './components/WordListInput/ManualInput';
 import { FileUpload } from './components/WordListInput/FileUpload';
@@ -14,14 +15,49 @@ import { InteractiveControls } from './components/InteractiveControls';
 import { PdfExportModal } from './components/PdfExportModal';
 import { HelpModal } from './components/HelpModal';
 import { AudioPracticeModal } from './components/AudioPracticeModal';
+import { ShareModal } from './components/ShareModal';
+import { StudentPlayView } from './components/StudentPlayView';
 import { FileText, Camera, Edit3 } from 'lucide-react';
 import './App.css';
 
 export const App: React.FC = () => {
+  // 生徒用URL共有パラメータのチェック (#play=... or ?play=...)
+  const parseSharedUrl = () => {
+    try {
+      const hash = window.location.hash;
+      if (hash.includes('play=')) {
+        const parts = hash.split('play=');
+        const encoded = parts[1]?.split('&')[0];
+        if (encoded) {
+          return decodeSharedPuzzle(encoded);
+        }
+      }
+      const params = new URLSearchParams(window.location.search);
+      const playParam = params.get('play');
+      if (playParam) {
+        return decodeSharedPuzzle(playParam);
+      }
+    } catch (e) {
+      console.error('Failed to parse URL puzzle:', e);
+    }
+    return null;
+  };
+
+  const [studentModeData, setStudentModeData] = useState<ReturnType<typeof decodeSharedPuzzle> | null>(() => parseSharedUrl());
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setStudentModeData(parseSharedUrl());
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   // 状態管理
   const [words, setWords] = useState<WordItem[]>(INITIAL_SAMPLE_WORDS);
   const [hintStyle, setHintStyle] = useState<HintStyle>('sentence_ja');
   const [gridSize, setGridSize] = useState<number>(20);
+  const [gridTheme, setGridTheme] = useState<GridTheme>('ink-saver'); // 省インク・白背景をデフォルト推奨
   const [grid, setGrid] = useState<CrosswordGrid>(() => generateCrossword(INITIAL_SAMPLE_WORDS, 20));
   const [puzzleTitle, setPuzzleTitle] = useState<string>('英単語クロスワードパズル');
 
@@ -35,6 +71,7 @@ export const App: React.FC = () => {
 
   // モーダル状態
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [inputTab, setInputTab] = useState<'manual' | 'file' | 'ocr'>('manual');
@@ -324,6 +361,38 @@ export const App: React.FC = () => {
     setIsCompleted(false);
   };
 
+  // PDF等からのパズル完全復元ハンドラ
+  const handleRestorePuzzlePackage = (pkg: CrosswordPuzzlePackage) => {
+    if (pkg.title) setPuzzleTitle(pkg.title);
+    if (pkg.words && pkg.words.length > 0) setWords(pkg.words);
+    if (pkg.gridSize) setGridSize(pkg.gridSize);
+    if (pkg.grid) setGrid(pkg.grid);
+    if (pkg.hintStyle) setHintStyle(pkg.hintStyle);
+    if (pkg.theme) setGridTheme(pkg.theme);
+    if (pkg.showFirstLetters !== undefined) setShowFirstLetters(pkg.showFirstLetters);
+    setIsCompleted(false);
+    setActiveCell(null);
+    setSelectedWordId(null);
+  };
+
+  // 生徒用プレイモードがURLで指定されている場合
+  if (studentModeData) {
+    return (
+      <StudentPlayView
+        initialGrid={studentModeData.grid}
+        title={studentModeData.title}
+        subtitle={studentModeData.subtitle}
+        hintStyle={studentModeData.hintStyle}
+        theme={studentModeData.theme}
+        initialShowFirstLetters={studentModeData.showFirstLetters}
+        onExitToTeacherMode={() => {
+          window.location.hash = '';
+          setStudentModeData(null);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="app-layout">
       <Header
@@ -367,6 +436,7 @@ export const App: React.FC = () => {
               <FileUpload
                 onAddMultipleWords={handleAddMultipleWords}
                 onSetTitle={setPuzzleTitle}
+                onRestorePuzzlePackage={handleRestorePuzzlePackage}
               />
             )}
             {inputTab === 'ocr' && (
@@ -393,8 +463,11 @@ export const App: React.FC = () => {
             onChangeGridSize={setGridSize}
             puzzleTitle={puzzleTitle}
             onUpdateTitle={setPuzzleTitle}
+            theme={gridTheme}
+            onChangeTheme={setGridTheme}
             onRegenerate={handleRegenerate}
             onOpenPdfModal={() => setIsPdfModalOpen(true)}
+            onOpenShareModal={() => setIsShareModalOpen(true)}
           />
 
           <div className="crossword-preview-section">
@@ -418,6 +491,7 @@ export const App: React.FC = () => {
                 selectedWordId={selectedWordId}
                 showAnswers={showAnswers}
                 showFirstLetters={showFirstLetters}
+                theme={gridTheme}
                 onCellClick={handleCellClick}
                 onCellInput={handleCellInput}
                 onKeyDownNav={handleKeyDownNav}
@@ -438,11 +512,26 @@ export const App: React.FC = () => {
       {isPdfModalOpen && (
         <PdfExportModal
           grid={grid}
+          words={words}
           hintStyle={hintStyle}
           initialTitle={puzzleTitle}
           initialShowFirstLetters={showFirstLetters}
+          initialTheme={gridTheme}
           onUpdateTitle={setPuzzleTitle}
           onClose={() => setIsPdfModalOpen(false)}
+        />
+      )}
+
+      {/* 生徒向けオンライン配信モーダル */}
+      {isShareModalOpen && (
+        <ShareModal
+          grid={grid}
+          title={puzzleTitle}
+          subtitle="Name: ________________________________"
+          hintStyle={hintStyle}
+          theme={gridTheme}
+          showFirstLetters={showFirstLetters}
+          onClose={() => setIsShareModalOpen(false)}
         />
       )}
 

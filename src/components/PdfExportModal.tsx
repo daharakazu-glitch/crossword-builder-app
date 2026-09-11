@@ -1,28 +1,33 @@
 import React, { useState } from 'react';
-import { X, Download, CheckSquare, Printer, Sparkles, Type } from 'lucide-react';
-import type { CrosswordGrid, HintStyle } from '../types/crossword';
+import { X, Download, CheckSquare, Printer, Sparkles, Type, Droplets } from 'lucide-react';
+import type { CrosswordGrid, HintStyle, GridTheme, WordItem, CrosswordPuzzlePackage } from '../types/crossword';
 import { exportCrosswordToPdf, exportBothCrosswordsToPdf, formatClueText } from '../utils/pdfExport';
 
 interface PdfExportModalProps {
   grid: CrosswordGrid;
+  words?: WordItem[];
   hintStyle: HintStyle;
   initialTitle?: string;
   initialShowFirstLetters?: boolean;
+  initialTheme?: GridTheme;
   onUpdateTitle?: (title: string) => void;
   onClose: () => void;
 }
 
 export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   grid,
+  words = [],
   hintStyle,
   initialTitle = '英単語クロスワードパズル',
   initialShowFirstLetters = false,
+  initialTheme = 'ink-saver',
   onUpdateTitle,
   onClose,
 }) => {
   const [title, setTitle] = useState(initialTitle);
   const [subtitle, setSubtitle] = useState('Name: ________________________________');
   const [showFirstLetters, setShowFirstLetters] = useState(initialShowFirstLetters);
+  const [theme, setTheme] = useState<GridTheme>(initialTheme);
   const [exporting, setExporting] = useState(false);
 
   const handleTitleChange = (newTitle: string) => {
@@ -35,6 +40,24 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   const acrossClues = grid.placedWords.filter((w) => w.direction === 'across');
   const downClues = grid.placedWords.filter((w) => w.direction === 'down');
 
+  // 復元用パッケージの生成
+  const puzzlePackage: CrosswordPuzzlePackage = {
+    version: '1.0.0',
+    title,
+    subtitle,
+    gridSize: grid.size,
+    hintStyle,
+    theme,
+    showFirstLetters,
+    grid,
+    words: words.length > 0 ? words : grid.placedWords.map((w) => ({
+      id: w.id,
+      word: w.word,
+      japanese: w.japanese,
+      sentence: w.sentence,
+    })),
+  };
+
   const handleDownloadQuestionPdf = async () => {
     setExporting(true);
     try {
@@ -44,6 +67,8 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         hintStyle,
         isAnswerKey: false,
         elementId: 'pdf-print-area-question',
+        puzzlePackage,
+        theme,
       });
     } catch (err) {
       console.error(err);
@@ -62,6 +87,8 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         hintStyle,
         isAnswerKey: true,
         elementId: 'pdf-print-area-answer',
+        puzzlePackage,
+        theme,
       });
     } catch (err) {
       console.error(err);
@@ -80,6 +107,8 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         hintStyle,
         questionElementId: 'pdf-print-area-question',
         answerElementId: 'pdf-print-area-answer',
+        puzzlePackage,
+        theme,
       });
     } catch (err) {
       console.error(err);
@@ -125,6 +154,57 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 placeholder="例: Name: ____________________"
               />
             </div>
+
+            {/* 背景・インク節約スタイル選択 */}
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                <Droplets size={16} color="var(--primary)" /> 盤面背景スタイル（インク節約設定）
+              </label>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '6px', flexWrap: 'wrap' }}>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 14px',
+                  borderRadius: '6px',
+                  border: theme === 'ink-saver' ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  background: theme === 'ink-saver' ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-secondary)',
+                  cursor: 'pointer',
+                  fontWeight: theme === 'ink-saver' ? 600 : 400,
+                }}>
+                  <input
+                    type="radio"
+                    name="pdf-theme"
+                    checked={theme === 'ink-saver'}
+                    onChange={() => setTheme('ink-saver')}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span>🌱 <strong>白背景・省インク（印刷推奨）</strong>：黒マスを薄い斜線にしてインクくっつきを防止</span>
+                </label>
+
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 14px',
+                  borderRadius: '6px',
+                  border: theme === 'classic' ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  background: theme === 'classic' ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-secondary)',
+                  cursor: 'pointer',
+                  fontWeight: theme === 'classic' ? 600 : 400,
+                }}>
+                  <input
+                    type="radio"
+                    name="pdf-theme"
+                    checked={theme === 'classic'}
+                    onChange={() => setTheme('classic')}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span>⬛ <strong>黒マス（クラシック）</strong>：従来の黒ベタ塗りマス</span>
+                </label>
+              </div>
+            </div>
+
             <div className="form-group checkbox-group" style={{ gridColumn: '1 / -1' }}>
               <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600, color: 'var(--text-primary)' }}>
                 <input
@@ -164,7 +244,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
           </div>
 
           <p className="pdf-preview-notice">
-            ※以下の内容がA4サイズちょうど1枚ずつ印刷用PDFとして出力されます。解答欄の英単語は小文字（例: [soil]）で記載されます。
+            ※以下の内容がA4サイズちょうど1枚ずつ印刷用PDFとして出力されます。PDFには再編集・完全復元用データが自動埋め込まれます。
           </p>
 
           {/* 印刷用プレビューエリア */}
@@ -178,7 +258,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
               <div className="sheet-grid-wrapper">
                 <div
-                  className="sheet-grid"
+                  className={`sheet-grid theme-${theme}`}
                   style={{
                     gridTemplateColumns: `repeat(${grid.size}, minmax(0, 1fr))`,
                   }}
@@ -242,7 +322,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
               <div className="sheet-grid-wrapper">
                 <div
-                  className="sheet-grid"
+                  className={`sheet-grid theme-${theme}`}
                   style={{
                     gridTemplateColumns: `repeat(${grid.size}, minmax(0, 1fr))`,
                   }}

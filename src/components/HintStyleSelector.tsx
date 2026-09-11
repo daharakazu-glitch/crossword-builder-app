@@ -1,6 +1,6 @@
 import React from 'react';
-import { HelpCircle, Shuffle, LayoutGrid, FileCheck, Type } from 'lucide-react';
-import type { HintStyle } from '../types/crossword';
+import { HelpCircle, Shuffle, LayoutGrid, FileCheck, Type, Share2, Droplets } from 'lucide-react';
+import type { HintStyle, GridTheme } from '../types/crossword';
 
 interface HintStyleSelectorProps {
   hintStyle: HintStyle;
@@ -9,8 +9,11 @@ interface HintStyleSelectorProps {
   onChangeGridSize: (size: number) => void;
   puzzleTitle: string;
   onUpdateTitle: (title: string) => void;
+  theme: GridTheme;
+  onChangeTheme: (theme: GridTheme) => void;
   onRegenerate: () => void;
   onOpenPdfModal: () => void;
+  onOpenShareModal: () => void;
 }
 
 export const HintStyleSelector: React.FC<HintStyleSelectorProps> = ({
@@ -20,8 +23,11 @@ export const HintStyleSelector: React.FC<HintStyleSelectorProps> = ({
   onChangeGridSize,
   puzzleTitle,
   onUpdateTitle,
+  theme,
+  onChangeTheme,
   onRegenerate,
   onOpenPdfModal,
+  onOpenShareModal,
 }) => {
   return (
     <div className="config-card">
@@ -91,23 +97,52 @@ export const HintStyleSelector: React.FC<HintStyleSelectorProps> = ({
       </div>
 
       <div className="config-footer">
-        <div className="grid-size-selector">
-          <LayoutGrid size={16} />
-          <span>盤面サイズ:</span>
-          <select value={gridSize} onChange={(e) => onChangeGridSize(Number(e.target.value))}>
-            <option value={15}>15 × 15 (小)</option>
-            <option value={20}>20 × 20 (標準)</option>
-            <option value={25}>25 × 25 (大 - 50〜100語向け)</option>
-            <option value={30}>30 × 30 (特大)</option>
-          </select>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="grid-size-selector">
+            <LayoutGrid size={16} />
+            <span>盤面サイズ:</span>
+            <select value={gridSize} onChange={(e) => onChangeGridSize(Number(e.target.value))}>
+              <option value={15}>15 × 15 (小)</option>
+              <option value={20}>20 × 20 (標準)</option>
+              <option value={25}>25 × 25 (大 - 50〜100語向け)</option>
+              <option value={30}>30 × 30 (特大)</option>
+            </select>
+          </div>
+
+          <div className="theme-selector" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
+            <Droplets size={16} color="var(--primary)" />
+            <span>背景:</span>
+            <select
+              value={theme}
+              onChange={(e) => onChangeTheme(e.target.value as GridTheme)}
+              style={{
+                padding: '4px 8px',
+                borderRadius: '4px',
+                border: '1px solid var(--border)',
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="ink-saver">🌱 白背景・省インク（推奨）</option>
+              <option value="classic">⬛ 黒マス（クラシック）</option>
+            </select>
+          </div>
         </div>
 
         <div className="footer-btns">
+          <button
+            className="btn btn-primary"
+            onClick={onOpenShareModal}
+            style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Share2 size={16} /> 生徒へ配信
+          </button>
           <button className="btn btn-secondary" onClick={onRegenerate}>
-            <Shuffle size={16} /> パズル配置を再生成
+            <Shuffle size={16} /> 再生成
           </button>
           <button className="btn btn-pdf-primary" onClick={onOpenPdfModal}>
-            <FileCheck size={18} /> PDFダウンロード
+            <FileCheck size={18} /> PDF出力
           </button>
         </div>
       </div>

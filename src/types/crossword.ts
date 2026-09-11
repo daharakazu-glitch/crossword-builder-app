@@ -31,9 +31,23 @@ export interface CellData {
   isCorrect?: boolean;      // 正誤判定状態
 }
 
+export type GridTheme = 'classic' | 'ink-saver';
+
 export interface CrosswordGrid {
   size: number;
   cells: CellData[][];
   placedWords: PlacedWord[];
   unplacedWords: WordItem[];
+}
+
+export interface CrosswordPuzzlePackage {
+  version: string;
+  title: string;
+  subtitle?: string;
+  gridSize: number;
+  hintStyle: HintStyle;
+  theme?: GridTheme;
+  showFirstLetters?: boolean;
+  grid: CrosswordGrid;
+  words: WordItem[];
 }

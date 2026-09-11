@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import type { CellData } from '../types/crossword';
+import type { CellData, GridTheme } from '../types/crossword';
 
 interface BoardProps {
   cells: CellData[][];
@@ -8,6 +8,7 @@ interface BoardProps {
   selectedWordId: string | null;
   showAnswers: boolean;
   showFirstLetters: boolean;
+  theme?: GridTheme;
   onCellClick: (row: number, col: number) => void;
   onCellInput: (row: number, col: number, letter: string) => void;
   onKeyDownNav: (e: React.KeyboardEvent) => void;
@@ -20,6 +21,7 @@ export const Board: React.FC<BoardProps> = ({
   selectedWordId,
   showAnswers,
   showFirstLetters,
+  theme = 'classic',
   onCellClick,
   onCellInput,
   onKeyDownNav,
@@ -49,7 +51,7 @@ export const Board: React.FC<BoardProps> = ({
       tabIndex={0}
     >
       <div
-        className="crossword-grid"
+        className={`crossword-grid theme-${theme}`}
         style={{
           gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
         }}
