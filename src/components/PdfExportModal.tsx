@@ -66,13 +66,14 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     setExportStatus('問題用紙のPDFを生成中...');
     try {
       await exportCrosswordToPdf({
-        title: `${title}_問題`,
+        title,
         subtitle,
         hintStyle,
         isAnswerKey: false,
-        elementId: 'pdf-print-area-question',
+        grid,
         puzzlePackage,
         theme,
+        showFirstLetters,
       });
     } catch (err: any) {
       console.error('PDF export error (Question):', err);
@@ -90,13 +91,14 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     setExportStatus('解答用紙のPDFを生成中...');
     try {
       await exportCrosswordToPdf({
-        title: `${title}_解答`,
+        title,
         subtitle,
         hintStyle,
         isAnswerKey: true,
-        elementId: 'pdf-print-area-answer',
+        grid,
         puzzlePackage,
         theme,
+        showFirstLetters,
       });
     } catch (err: any) {
       console.error('PDF export error (Answer):', err);
@@ -117,10 +119,10 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         title,
         subtitle,
         hintStyle,
-        questionElementId: 'pdf-print-area-question',
-        answerElementId: 'pdf-print-area-answer',
+        grid,
         puzzlePackage,
         theme,
+        showFirstLetters,
       });
     } catch (err: any) {
       console.error('PDF export error (Both):', err);
