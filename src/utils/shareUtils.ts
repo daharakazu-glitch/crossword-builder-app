@@ -21,7 +21,7 @@ export interface SharedPuzzlePayload {
 }
 
 /**
- * パズル状態をURLハッシュ用のBase64文字列に圧縮変換
+ * パズル状態をBase64文字列に変換
  */
 export function encodeSharedPuzzle(
   title: string,
@@ -111,9 +111,59 @@ export function decodeSharedPuzzle(encoded: string): {
 }
 
 /**
- * 現在のページのオリジンとパスから完全な共有URLを構築
+ * 現在のページのオリジンとパスから完全な共有URLを構築（ハッシュ形式とクエリ形式の両方を作成可能）
  */
-export function buildShareUrl(encodedData: string): string {
-  const baseUrl = window.location.origin + window.location.pathname;
+export function buildShareUrl(encodedData: string, useQueryParam = true): string {
+  // 本番環境のGitHub Pages URLを優先（ローカルで開いている場合も生徒がアクセスできる公開URLを生成）
+  let baseUrl = window.location.origin + window.location.pathname;
+  if (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
+    baseUrl = 'https://daharakazu-glitch.github.io/crossword-builder-app/';
+  }
+
+  if (useQueryParam) {
+    return `${baseUrl}?p=${encodeURIComponent(encodedData)}`;
+  }
   return `${baseUrl}#play=${encodedData}`;
+}
+
+/**
+ * Google Classroom の公式「リンクを共有」URLを生成
+ */
+export function buildClassroomShareUrl(targetUrl: string, title: string): string {
+  return `https://classroom.google.com/share?url=${encodeURIComponent(targetUrl)}&title=${encodeURIComponent(title)}`;
+}
+
+/**
+ * TinyURL API を呼び出し、Google Classroom の2048文字制限を完全にクリアする短縮URLを生成
+ */
+export async function createShortUrl(longUrl: string): Promise<string> {
+  try {
+    const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
+    const response = await fetch(apiUrl, { method: 'GET' });
+    if (response.ok) {
+      const shortUrl = (await response.text()).trim();
+      if (shortUrl.startsWith('http')) {
+        return shortUrl;
+      }
+    }
+  } catch (e) {
+    console.warn('TinyURL API failed, trying fallback...', e);
+  }
+
+  // フォールバック: is.gd API
+  try {
+    const isGdApi = `https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
+    const isGdRes = await fetch(isGdApi, { method: 'GET' });
+    if (isGdRes.ok) {
+      const data = await isGdRes.json();
+      if (data.shorturl) {
+        return data.shorturl;
+      }
+    }
+  } catch (isGdErr) {
+    console.warn('is.gd API fallback failed:', isGdErr);
+  }
+
+  // 外部短縮サービスが利用できない場合は元のURLを返す
+  return longUrl;
 }

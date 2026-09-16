@@ -21,9 +21,17 @@ import { FileText, Camera, Edit3 } from 'lucide-react';
 import './App.css';
 
 export const App: React.FC = () => {
-  // 生徒用URL共有パラメータのチェック (#play=... or ?play=...)
+  // 生徒用URL共有パラメータのチェック (?p=... or ?play=... or #play=...)
   const parseSharedUrl = () => {
     try {
+      // 1. クエリパラメータのチェック (?p= or ?play=)
+      const params = new URLSearchParams(window.location.search);
+      const queryParam = params.get('p') || params.get('play');
+      if (queryParam) {
+        return decodeSharedPuzzle(queryParam);
+      }
+
+      // 2. URLハッシュのチェック (#play= or #p=)
       const hash = window.location.hash;
       if (hash.includes('play=')) {
         const parts = hash.split('play=');
@@ -31,11 +39,12 @@ export const App: React.FC = () => {
         if (encoded) {
           return decodeSharedPuzzle(encoded);
         }
-      }
-      const params = new URLSearchParams(window.location.search);
-      const playParam = params.get('play');
-      if (playParam) {
-        return decodeSharedPuzzle(playParam);
+      } else if (hash.includes('p=')) {
+        const parts = hash.split('p=');
+        const encoded = parts[1]?.split('&')[0];
+        if (encoded) {
+          return decodeSharedPuzzle(encoded);
+        }
       }
     } catch (e) {
       console.error('Failed to parse URL puzzle:', e);
