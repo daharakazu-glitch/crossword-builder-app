@@ -1421,4 +1421,84 @@
   letter-spacing: 0.5px;
 }
 
+/* ===================================================
+   🖨️ A4 高画質ネイティブ印刷・PDF保存スタイル
+   =================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 6mm 10mm;
+  }
+
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 通常のUI、ヘッダー、フッター、モーダルの不要UIをすべて非表示 */
+  .app-header,
+  .app-footer,
+  .main-content,
+  .modal-header,
+  .pdf-config-form,
+  .pdf-actions-bar,
+  .pdf-preview-notice,
+  .modal-overlay:not(:has(.pdf-modal)) {
+    display: none !important;
+  }
+
+  .modal-overlay {
+    position: static !important;
+    background: none !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .modal-content.pdf-modal {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: none !important;
+    height: auto !important;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  .modal-body {
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .pdf-preview-scroll {
+    background: none !important;
+    padding: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .pdf-print-sheet {
+    width: 100% !important;
+    min-height: auto !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 0 20mm 0 !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .pdf-print-sheet:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    margin-bottom: 0 !important;
+  }
+}
+
 

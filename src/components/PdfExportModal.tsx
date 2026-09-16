@@ -29,6 +29,8 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   const [showFirstLetters, setShowFirstLetters] = useState(initialShowFirstLetters);
   const [theme, setTheme] = useState<GridTheme>(initialTheme);
   const [exporting, setExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleTitleChange = (newTitle: string) => {
     setTitle(newTitle);
@@ -60,6 +62,8 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
   const handleDownloadQuestionPdf = async () => {
     setExporting(true);
+    setErrorMessage(null);
+    setExportStatus('問題用紙のPDFを生成中...');
     try {
       await exportCrosswordToPdf({
         title: `${title}_問題`,
@@ -70,16 +74,20 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         puzzlePackage,
         theme,
       });
-    } catch (err) {
-      console.error(err);
-      alert('PDFの出力中にエラーが発生しました。');
+    } catch (err: any) {
+      console.error('PDF export error (Question):', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMessage(`PDFの生成中にエラーが発生しました: ${msg}（下の「ブラウザで直接印刷 / PDF保存」ボタンもお試しいただけます）`);
     } finally {
       setExporting(false);
+      setExportStatus('');
     }
   };
 
   const handleDownloadAnswerPdf = async () => {
     setExporting(true);
+    setErrorMessage(null);
+    setExportStatus('解答用紙のPDFを生成中...');
     try {
       await exportCrosswordToPdf({
         title: `${title}_解答`,
@@ -90,16 +98,20 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         puzzlePackage,
         theme,
       });
-    } catch (err) {
-      console.error(err);
-      alert('PDFの出力中にエラーが発生しました。');
+    } catch (err: any) {
+      console.error('PDF export error (Answer):', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMessage(`PDFの生成中にエラーが発生しました: ${msg}（下の「ブラウザで直接印刷 / PDF保存」ボタンもお試しいただけます）`);
     } finally {
       setExporting(false);
+      setExportStatus('');
     }
   };
 
   const handleDownloadBoth = async () => {
     setExporting(true);
+    setErrorMessage(null);
+    setExportStatus('問題と解答の2ページPDFを一括生成中...');
     try {
       await exportBothCrosswordsToPdf({
         title,
@@ -110,12 +122,18 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         puzzlePackage,
         theme,
       });
-    } catch (err) {
-      console.error(err);
-      alert('PDFの出力中にエラーが発生しました。');
+    } catch (err: any) {
+      console.error('PDF export error (Both):', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMessage(`PDFの生成中にエラーが発生しました: ${msg}（下の「ブラウザで直接印刷 / PDF保存」ボタンもお試しいただけます）`);
     } finally {
       setExporting(false);
+      setExportStatus('');
     }
+  };
+
+  const handleNativePrint = () => {
+    window.print();
   };
 
   return (
@@ -218,7 +236,62 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
             </div>
           </div>
 
-          <div className="pdf-actions-bar">
+          {/* エラーメッセージ表示 */}
+          {errorMessage && (
+            <div style={{
+              background: '#fee2e2',
+              border: '1px solid #ef4444',
+              color: '#991b1b',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              fontSize: '0.88rem',
+              lineHeight: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px'
+            }}>
+              <span>⚠️ {errorMessage}</span>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={handleNativePrint}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                🖨️ ブラウザ印刷でPDF保存
+              </button>
+            </div>
+          )}
+
+          {/* 処理中ステータス表示 */}
+          {exporting && (
+            <div style={{
+              background: 'rgba(99, 102, 241, 0.1)',
+              border: '1px solid var(--primary)',
+              color: 'var(--primary)',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <span className="spinner" style={{
+                display: 'inline-block',
+                width: '16px',
+                height: '16px',
+                border: '2px solid var(--primary)',
+                borderTopColor: 'transparent',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              <span>{exportStatus || 'PDFを生成中...しばらくお待ちください'}</span>
+            </div>
+          )}
+
+          <div className="pdf-actions-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
             <button
               className="btn btn-outline-purple"
               onClick={handleDownloadBoth}
@@ -240,6 +313,15 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
               disabled={exporting}
             >
               <CheckSquare size={16} /> 【解答用紙のみ】PDFダウンロード
+            </button>
+            <button
+              className="btn btn-outline"
+              onClick={handleNativePrint}
+              disabled={exporting}
+              title="ブラウザ標準の印刷機能を使って、高品質なA4ベクターPDFとして保存またはプリンター印刷します"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Printer size={16} /> 🖨️ ブラウザで直接印刷 / PDF保存
             </button>
           </div>
 

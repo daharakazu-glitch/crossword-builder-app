@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+/* フォントは index.html の link タグにて最適化ロード（html2canvas の CORS 競合防止） */
 
 :root {
   --bg-dark: #0f172a;
