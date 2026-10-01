@@ -1118,6 +1118,12 @@
   margin-top: 8px;
 }
 
+.sheet-clues-section.col-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  font-size: 0.78rem;
+}
+
 .sheet-clues-col h3 {
   border-bottom: 1.5px solid #000;
   font-size: 0.95rem;
