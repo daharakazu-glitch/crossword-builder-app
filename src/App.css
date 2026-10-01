@@ -1112,24 +1112,25 @@
 .sheet-clues-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  font-size: 0.85rem;
-  line-height: 1.35;
-  margin-top: 8px;
+  gap: 20px;
+  font-size: 1.05rem;
+  line-height: 1.4;
+  margin-top: 10px;
 }
 
 .sheet-clues-section.col-3 {
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-  font-size: 0.78rem;
+  gap: 14px;
+  font-size: 0.95rem;
+  line-height: 1.35;
 }
 
 .sheet-clues-col h3 {
-  border-bottom: 1.5px solid #000;
-  font-size: 0.95rem;
+  border-bottom: 2px solid #000;
+  font-size: 1.15rem;
   font-weight: 800;
-  padding-bottom: 2px;
-  margin: 0 0 6px 0;
+  padding-bottom: 3px;
+  margin: 0 0 8px 0;
 }
 
 .sheet-clues-list {

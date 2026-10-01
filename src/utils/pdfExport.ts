@@ -208,12 +208,13 @@ function findOptimalLayout(
   const totalClues = acrossClues.length + downClues.length;
 
   // 盤面セルの最小・理想サイズ制約
-  const minCellPx = 26; // 生徒が文字を手書きできる最小サイズ
-  const minGridPx = Math.max(460, gridCellCount * minCellPx);
-  const idealMaxGridPx = Math.min(920, contentWidth);
+  // マス目を手書きに最適なプロサイズ（1マス約32〜36px）に最適化し、ヒント領域を最大化
+  const minCellPx = 28;
+  const minGridPx = Math.max(480, gridCellCount * minCellPx);
+  const idealMaxGridPx = Math.min(740, Math.max(minGridPx, gridCellCount * 36));
 
   // 厳格な安全マージン（計算誤差やベースラインのブレを完全吸収）
-  const safetyMargin = 50;
+  const safetyMargin = 40;
   const usableHeightForContent = totalAvailableHeight - safetyMargin;
 
   // 評価ヘルパー: 指定のフォントサイズとモードでレイアウトを計算
@@ -311,7 +312,7 @@ function findOptimalLayout(
       return null; // グリッドが最小サイズを維持できない
     }
 
-    // 適切なグリッドサイズ（最大 920px、余剰があれば利用）
+    // 適切なグリッドサイズ（最大 idealMaxGridPx、余剰があれば利用）
     const gridPx = Math.min(idealMaxGridPx, Math.max(minGridPx, availableForGrid));
 
     return {
@@ -329,8 +330,8 @@ function findOptimalLayout(
     };
   };
 
-  // フォントサイズの候補: 20px(大判・高可読) から 13px(最小保証) まで降順探索
-  const fontSizes = [20, 19.5, 19, 18.5, 18, 17.5, 17, 16.5, 16, 15.5, 15, 14.5, 14, 13.5, 13];
+  // フォントサイズの候補: 26px(教科書本文サイズ・特大) から 14px まで降順探索
+  const fontSizes = [26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14];
 
   let bestPlan: ColumnLayoutPlan | null = null;
 
@@ -348,9 +349,9 @@ function findOptimalLayout(
   // 2. 単語数が 23語以下の場合: 左右の高さが揃っていれば 2カラム classic を優先
   if (!bestPlan && totalClues < 24) {
     for (const fs of fontSizes) {
-      if (fs < 16) break;
+      if (fs < 18) break;
       const plan = evaluateMode(2, fs, 'classic');
-      if (plan && plan.gridPx >= minGridPx + 30) {
+      if (plan && plan.gridPx >= minGridPx + 20) {
         bestPlan = plan;
         break;
       }
@@ -379,19 +380,19 @@ function findOptimalLayout(
     }
   }
 
-  // 5. 万一見つからなかった場合のセーフティフォールバック（13px 3-col）
+  // 5. 万一見つからなかった場合のセーフティフォールバック（14px 3-col）
   if (!bestPlan) {
-    bestPlan = evaluateMode(3, 13, 'balanced') || {
+    bestPlan = evaluateMode(3, 14, 'balanced') || {
       numCols: 3,
       colWidth: 458,
       colGap: 32,
       columns: [],
       maxColHeight: 700,
-      fontSize: 13,
-      lineHeight: 18,
+      fontSize: 14,
+      lineHeight: 19,
       itemGap: 4,
-      headingFontSize: 15,
-      headingHeight: 24,
+      headingFontSize: 16,
+      headingHeight: 26,
       gridPx: minGridPx,
     };
   }

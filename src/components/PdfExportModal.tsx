@@ -373,7 +373,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 </div>
               </div>
 
-              <div className="sheet-clues-section">
+              <div className={`sheet-clues-section ${grid.placedWords.length >= 24 ? 'col-3' : ''}`}>
                 <div className="sheet-clues-col">
                   <h3>ヨコ (Across)</h3>
                   <ol className="sheet-clues-list">
@@ -431,7 +431,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 </div>
               </div>
 
-              <div className="sheet-clues-section">
+              <div className={`sheet-clues-section ${grid.placedWords.length >= 24 ? 'col-3' : ''}`}>
                 <div className="sheet-clues-col">
                   <h3>ヨコ (Across) 解答付きヒント</h3>
                   <ol className="sheet-clues-list">
