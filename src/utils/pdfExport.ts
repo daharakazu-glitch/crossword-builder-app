@@ -64,32 +64,316 @@ export function encodePuzzlePackage(pkg: CrosswordPuzzlePackage): string {
   }
 }
 
+interface RenderSheetOptions {
+  grid: CrosswordGrid;
+  title: string;
+  subtitle?: string;
+  hintStyle: HintStyle;
+  isAnswerKey: boolean;
+  theme?: GridTheme;
+  showFirstLetters?: boolean;
+}
+
 /**
- * テキストを指定幅で自動折り返しするヘルパー関数
+ * スマート・テキスト折り返し（英単語の途中分断を防ぎ、日本語と英単語を適切に折り返す）
  */
-function wrapText(
+function wrapTextSmart(
   ctx: CanvasRenderingContext2D,
   text: string,
   maxWidth: number
 ): string[] {
+  if (!text) return [];
+
+  // 日本語ブロック、英単語/数字、空白/記号にトークン化
+  const tokens = text.match(/([A-Za-z0-9_\-]+|[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uffef\u4e00-\u9faf]+|\s+|[^\s\w])/gu) || [text];
   const lines: string[] = [];
-  const words = text.split('');
   let currentLine = '';
 
-  for (let i = 0; i < words.length; i++) {
-    const testLine = currentLine + words[i];
-    const metrics = ctx.measureText(testLine);
-    if (metrics.width > maxWidth && currentLine.length > 0) {
-      lines.push(currentLine);
-      currentLine = words[i];
+  for (const token of tokens) {
+    const isCjk = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uffef\u4e00-\u9faf]/.test(token);
+
+    if (isCjk && token.length > 1) {
+      // 日本語文字列は1文字単位で折り返し判定
+      for (const char of token) {
+        const testLine = currentLine + char;
+        if (ctx.measureText(testLine).width > maxWidth && currentLine.length > 0) {
+          lines.push(currentLine);
+          currentLine = char;
+        } else {
+          currentLine = testLine;
+        }
+      }
     } else {
-      currentLine = testLine;
+      const testLine = currentLine + token;
+      if (ctx.measureText(testLine).width > maxWidth && currentLine.length > 0) {
+        // 単語自体が最大幅を超える場合は文字単位で分割
+        if (ctx.measureText(token).width > maxWidth) {
+          for (const char of token) {
+            if (ctx.measureText(currentLine + char).width > maxWidth && currentLine.length > 0) {
+              lines.push(currentLine);
+              currentLine = char;
+            } else {
+              currentLine += char;
+            }
+          }
+        } else {
+          lines.push(currentLine);
+          currentLine = token.trimStart();
+        }
+      } else {
+        currentLine = testLine;
+      }
     }
   }
+
   if (currentLine) {
     lines.push(currentLine);
   }
   return lines;
+}
+
+interface ClueItemData {
+  type: 'heading' | 'clue';
+  title?: string;
+  word?: PlacedWord;
+  prefix: string;
+  clueText: string;
+  fullText: string;
+}
+
+interface ColumnLayoutPlan {
+  numCols: number;
+  colWidth: number;
+  colGap: number;
+  columns: {
+    items: {
+      data: ClueItemData;
+      lines: string[];
+      prefixWidth: number;
+      itemHeight: number;
+    }[];
+    totalHeight: number;
+  }[];
+  maxColHeight: number;
+  fontSize: number;
+  lineHeight: number;
+  itemGap: number;
+  headingFontSize: number;
+  headingHeight: number;
+  gridPx: number;
+}
+
+/**
+ * A4用紙のスペース（全高 2262px）に最も美しく最大フォントで収まる
+ * 最適なレイアウト（フォントサイズ、グリッドサイズ、カラム数）を自動探索・最適化
+ */
+function findOptimalLayout(
+  ctx: CanvasRenderingContext2D,
+  acrossClues: PlacedWord[],
+  downClues: PlacedWord[],
+  hintStyle: HintStyle,
+  isAnswerKey: boolean,
+  contentWidth: number,
+  totalAvailableHeight: number,
+  gridCellCount: number
+): ColumnLayoutPlan {
+  const acrossTitle = isAnswerKey ? 'ヨコ (Across) 解答付きヒント' : 'ヨコ (Across)';
+  const downTitle = isAnswerKey ? 'タテ (Down) 解答付きヒント' : 'タテ (Down)';
+
+  // 全アイテムを準備
+  const createClueItem = (w: PlacedWord): ClueItemData => {
+    const clueText = formatClueText(w, hintStyle);
+    const prefix = isAnswerKey
+      ? `${w.number}. [${w.word.toLowerCase()}] - `
+      : `${w.number}. `;
+    return {
+      type: 'clue',
+      word: w,
+      prefix,
+      clueText,
+      fullText: prefix + clueText,
+    };
+  };
+
+  const acrossItems: ClueItemData[] = [
+    { type: 'heading', title: acrossTitle, prefix: '', clueText: '', fullText: '' },
+    ...acrossClues.map(createClueItem),
+  ];
+
+  const downItems: ClueItemData[] = [
+    { type: 'heading', title: downTitle, prefix: '', clueText: '', fullText: '' },
+    ...downClues.map(createClueItem),
+  ];
+
+  const totalClues = acrossClues.length + downClues.length;
+
+  // 盤面セルの最小・理想サイズ制約
+  const minCellPx = 28; // 生徒が文字を手書きできる最小サイズ
+  const minGridPx = Math.max(480, gridCellCount * minCellPx);
+  const idealMaxGridPx = Math.min(940, contentWidth);
+
+  // 評価ヘルパー: 指定のフォントサイズとモードでレイアウトを計算
+  const evaluateMode = (
+    numCols: number,
+    fontSize: number,
+    mode: 'classic' | 'balanced'
+  ): ColumnLayoutPlan | null => {
+    const colGap = numCols === 3 ? 32 : 44;
+    const colWidth = (contentWidth - colGap * (numCols - 1)) / numCols;
+
+    const headingFontSize = Math.round(fontSize * 1.15);
+    const headingHeight = headingFontSize + 14;
+    const lineHeight = Math.round(fontSize * 1.35);
+    const itemGap = Math.max(3, Math.round(fontSize * 0.22));
+
+    ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif`;
+
+    const measureItem = (item: ClueItemData) => {
+      if (item.type === 'heading') {
+        return {
+          data: item,
+          lines: [item.title || ''],
+          prefixWidth: 0,
+          itemHeight: headingHeight,
+        };
+      }
+
+      ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif`;
+      const lines = wrapTextSmart(ctx, item.fullText, colWidth);
+      ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif`;
+      const prefixWidth = ctx.measureText(item.prefix).width;
+      const itemHeight = lines.length * lineHeight + itemGap;
+
+      return {
+        data: item,
+        lines,
+        prefixWidth,
+        itemHeight,
+      };
+    };
+
+    let columnsData: {
+      items: ReturnType<typeof measureItem>[];
+      totalHeight: number;
+    }[] = [];
+
+    if (mode === 'classic' && numCols === 2) {
+      // 左にAcross、右にDown
+      const col0Items = acrossItems.map(measureItem);
+      const col1Items = downItems.map(measureItem);
+      const h0 = col0Items.reduce((sum, it) => sum + it.itemHeight, 0);
+      const h1 = col1Items.reduce((sum, it) => sum + it.itemHeight, 0);
+
+      columnsData = [
+        { items: col0Items, totalHeight: h0 },
+        { items: col1Items, totalHeight: h1 },
+      ];
+    } else {
+      // balanced: 全アイテムを均等に各列へ分配
+      const allRawItems = [...acrossItems, ...downItems];
+      const allMeasured = allRawItems.map(measureItem);
+      const totalH = allMeasured.reduce((sum, it) => sum + it.itemHeight, 0);
+      const targetColH = totalH / numCols;
+
+      columnsData = Array.from({ length: numCols }, () => ({
+        items: [] as ReturnType<typeof measureItem>[],
+        totalHeight: 0,
+      }));
+
+      let curCol = 0;
+      for (const item of allMeasured) {
+        if (
+          curCol < numCols - 1 &&
+          columnsData[curCol].totalHeight + item.itemHeight > targetColH * 1.05 &&
+          columnsData[curCol].items.length > 0
+        ) {
+          curCol++;
+        }
+        columnsData[curCol].items.push(item);
+        columnsData[curCol].totalHeight += item.itemHeight;
+      }
+    }
+
+    const maxColHeight = Math.max(...columnsData.map((c) => c.totalHeight));
+    const sectionGap = 24;
+    const availableForGrid = totalAvailableHeight - maxColHeight - sectionGap;
+
+    if (availableForGrid < minGridPx) {
+      return null; // グリッドが最小サイズを維持できない
+    }
+
+    // 適切なグリッドサイズ（最大 940px、余剰があれば利用）
+    const gridPx = Math.min(idealMaxGridPx, Math.max(minGridPx, availableForGrid));
+
+    return {
+      numCols,
+      colWidth,
+      colGap,
+      columns: columnsData,
+      maxColHeight,
+      fontSize,
+      lineHeight,
+      itemGap,
+      headingFontSize,
+      headingHeight,
+      gridPx,
+    };
+  };
+
+  // フォントサイズの候補: 22px(特大・高可読) から 13px(最小保証) まで降順探索
+  const fontSizes = [22, 21, 20, 19, 18.5, 18, 17.5, 17, 16.5, 16, 15.5, 15, 14.5, 14, 13.5, 13];
+
+  let bestPlan: ColumnLayoutPlan | null = null;
+
+  // 1. まず 2カラムクラシック（左Across, 右Down）で十分なフォントサイズで収まるか試行
+  // 左右の偏りが大きくない場合（比率 <= 1.45）はクラシック配置を最優先
+  const ratio = Math.max(acrossClues.length, downClues.length) / Math.max(1, Math.min(acrossClues.length, downClues.length));
+  if (ratio <= 1.45) {
+    for (const fs of fontSizes) {
+      if (fs < 16.5) break; // 16.5px 未満になるくらいなら段組を切り替える
+      const plan = evaluateMode(2, fs, 'classic');
+      if (plan && plan.gridPx >= minGridPx + 50) {
+        bestPlan = plan;
+        break;
+      }
+    }
+  }
+
+  // 2. クラシックで 17px 以上で収まらない、または単語数が多い（>= 32語）場合は 3カラム / balanced を探索
+  if (!bestPlan) {
+    // 単語数が30語以上の場合は 3カラムも候補
+    const colOptions = totalClues >= 30 ? [3, 2] : [2];
+
+    for (const fs of fontSizes) {
+      for (const cols of colOptions) {
+        const plan = evaluateMode(cols, fs, 'balanced');
+        if (plan) {
+          bestPlan = plan;
+          break;
+        }
+      }
+      if (bestPlan) break;
+    }
+  }
+
+  // 3. 万一見つからなかった場合のセーフティフォールバック（13px balanced）
+  if (!bestPlan) {
+    bestPlan = evaluateMode(totalClues >= 35 ? 3 : 2, 13, 'balanced') || {
+      numCols: 2,
+      colWidth: 690,
+      colGap: 40,
+      columns: [],
+      maxColHeight: 800,
+      fontSize: 13,
+      lineHeight: 18,
+      itemGap: 4,
+      headingFontSize: 16,
+      headingHeight: 26,
+      gridPx: minGridPx,
+    };
+  }
+
+  return bestPlan;
 }
 
 interface RenderSheetOptions {
@@ -103,12 +387,12 @@ interface RenderSheetOptions {
 }
 
 /**
- * HTML5 Canvas 2D を直接用いて、A4用紙（1600x2260px）を100%安全かつエラーフリーに描画
- * DOMや外部ライブラリ（html2canvas）に一切依存しないため、CORS/Taintedエラーが原理的に発生しません。
+ * HTML5 Canvas 2D を直接用いて、A4用紙（1600x2262px）を最適化レイアウトで描画
+ * フォントサイズとグリッドサイズを自動最適化（Auto-fit）し、A4一枚に100%美しく収めます。
  */
 export function renderCrosswordToPureCanvas(options: RenderSheetOptions): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
-  // A4比率 (1 : 1.414) の高解像度キャンバス
+  // A4比率 (1 : 1.41375) の高解像度キャンバス (210mm × 297mm)
   const width = 1600;
   const height = 2262;
   canvas.width = width;
@@ -133,38 +417,55 @@ export function renderCrosswordToPureCanvas(options: RenderSheetOptions): HTMLCa
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, width, height);
 
-  const marginX = 90;
-  const contentWidth = width - marginX * 2; // 1420px
+  const marginX = 75;
+  const contentWidth = width - marginX * 2; // 1450px
 
   // 2. ヘッダー描画
-  const headerY = 70;
+  const headerY = 50;
   ctx.fillStyle = '#000000';
-  ctx.font = 'bold 30px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
+  ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   const displayTitle = isAnswerKey ? `${title} (解答)` : title;
-  ctx.fillText(displayTitle, marginX, headerY + 32);
+  ctx.fillText(displayTitle, marginX, headerY + 30);
 
-  ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
+  ctx.font = 'bold 19px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText(subtitle, width - marginX, headerY + 32);
+  ctx.fillText(subtitle, width - marginX, headerY + 30);
 
   // ヘッダー区切り線
   ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(marginX, headerY + 45);
-  ctx.lineTo(width - marginX, headerY + 45);
+  ctx.moveTo(marginX, headerY + 44);
+  ctx.lineTo(width - marginX, headerY + 44);
   ctx.stroke();
 
-  // 3. 盤面（グリッド）描画
-  // グリッドサイズ: A4用紙上部中央に配置（最大 1040px 正方形）
-  const gridMaxPx = 1040;
-  const gridPx = Math.min(gridMaxPx, contentWidth);
-  const gridStartX = marginX + (contentWidth - gridPx) / 2;
-  const gridStartY = headerY + 65;
+  const headerBottomY = headerY + 46;
+  const bottomMargin = 45;
+  const totalAvailableHeight = height - bottomMargin - headerBottomY;
 
+  // 3. 最適レイアウトの自動計算
+  const acrossClues = grid.placedWords.filter((w) => w.direction === 'across');
+  const downClues = grid.placedWords.filter((w) => w.direction === 'down');
   const gridSize = Math.max(1, grid.size);
+
+  const layoutPlan = findOptimalLayout(
+    ctx,
+    acrossClues,
+    downClues,
+    hintStyle,
+    isAnswerKey,
+    contentWidth,
+    totalAvailableHeight,
+    gridSize
+  );
+
+  // 4. 盤面（グリッド）描画
+  const gridPx = layoutPlan.gridPx;
+  const gridStartX = marginX + (contentWidth - gridPx) / 2;
+  const gridStartY = headerBottomY + 20;
+
   const cellSize = gridPx / gridSize;
 
   // グリッド外枠
@@ -251,100 +552,87 @@ export function renderCrosswordToPureCanvas(options: RenderSheetOptions): HTMLCa
     }
   }
 
-  // 4. ヒント（Clues）セクション描画
-  const cluesStartY = gridStartY + gridPx + 25;
-  const colWidth = (contentWidth - 40) / 2; // 690px
-  const leftColX = marginX;
-  const rightColX = marginX + colWidth + 40;
+  // 5. ヒント（Clues）セクション描画
+  // グリッドとヒント間の余白（全体の余剰スペースに応じて適度に配分）
+  const remainingSpace = totalAvailableHeight - (gridPx + 20) - layoutPlan.maxColHeight;
+  const sectionGap = Math.min(36, Math.max(20, Math.round(remainingSpace * 0.4)));
+  const cluesStartY = gridStartY + gridPx + sectionGap;
 
-  const acrossClues = grid.placedWords.filter((w) => w.direction === 'across');
-  const downClues = grid.placedWords.filter((w) => w.direction === 'down');
-  const totalClues = acrossClues.length + downClues.length;
+  const {
+    colWidth,
+    colGap,
+    columns,
+    fontSize,
+    lineHeight,
+    itemGap,
+    headingFontSize,
+    headingHeight,
+  } = layoutPlan;
 
-  // 単語数に応じた適応的フォントサイズ
-  let clueFontSize = 14;
-  let clueLineHeight = 19;
-  if (totalClues > 45) {
-    clueFontSize = 11;
-    clueLineHeight = 15;
-  } else if (totalClues > 30) {
-    clueFontSize = 12;
-    clueLineHeight = 16.5;
-  } else if (totalClues > 20) {
-    clueFontSize = 13;
-    clueLineHeight = 17.5;
-  }
+  const hangIndent = Math.round(fontSize * 1.0); // 2行目以降のぶら下げインデント
 
-  // カラム描画用ヘルパー関数
-  const renderClueColumn = (
-    clues: PlacedWord[],
-    colX: number,
-    titleText: string
-  ) => {
-    // 見出し
-    ctx.fillStyle = '#000000';
-    ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(titleText, colX, cluesStartY + 20);
+  columns.forEach((col, colIdx) => {
+    const colX = marginX + colIdx * (colWidth + colGap);
+    let curY = cluesStartY;
 
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(colX, cluesStartY + 28);
-    ctx.lineTo(colX + colWidth, cluesStartY + 28);
-    ctx.stroke();
+    col.items.forEach((itemObj) => {
+      const item = itemObj.data;
 
-    let curY = cluesStartY + 48;
-    const maxBottomY = height - 40;
-
-    for (const w of clues) {
-      if (curY >= maxBottomY) break;
-
-      const clueText = formatClueText(w, hintStyle);
-      const prefix = isAnswerKey
-        ? `${w.number}. [${w.word.toLowerCase()}] - `
-        : `${w.number}. `;
-      const fullText = prefix + clueText;
-
-      ctx.font = `${clueFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif`;
-      const lines = wrapText(ctx, fullText, colWidth);
-
-      for (let i = 0; i < lines.length; i++) {
-        if (curY >= maxBottomY) break;
-        const line = lines[i];
-
-        // 最初の行の番号・単語部を強調
-        if (i === 0) {
-          ctx.fillStyle = isAnswerKey ? '#0f172a' : '#000000';
-          ctx.font = `bold ${clueFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif`;
-          const prefixWidth = ctx.measureText(prefix).width;
-          ctx.fillText(prefix, colX, curY);
-
-          ctx.fillStyle = '#1e293b';
-          ctx.font = `${clueFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif`;
-          ctx.fillText(line.substring(prefix.length), colX + prefixWidth, curY);
-        } else {
-          ctx.fillStyle = '#1e293b';
-          ctx.font = `${clueFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif`;
-          ctx.fillText(line, colX + 16, curY);
+      if (item.type === 'heading') {
+        // 見出し行
+        // 前の項目がある場合は少し間隔を空ける
+        if (curY > cluesStartY) {
+          curY += Math.round(fontSize * 0.5);
         }
-        curY += clueLineHeight;
-      }
-      curY += Math.max(2, clueLineHeight * 0.2);
-    }
-  };
 
-  renderClueColumn(
-    acrossClues,
-    leftColX,
-    isAnswerKey ? 'ヨコ (Across) 解答付きヒント' : 'ヨコ (Across)'
-  );
-  renderClueColumn(
-    downClues,
-    rightColX,
-    isAnswerKey ? 'タテ (Down) 解答付きヒント' : 'タテ (Down)'
-  );
+        ctx.fillStyle = '#000000';
+        ctx.font = `bold ${headingFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(item.title || '', colX, curY + headingFontSize - 2);
+
+        // 見出しアンダーライン
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(colX, curY + headingFontSize + 4);
+        ctx.lineTo(colX + colWidth, curY + headingFontSize + 4);
+        ctx.stroke();
+
+        curY += headingHeight;
+      } else {
+        // ヒント本文行
+        const lines = itemObj.lines;
+        const prefix = item.prefix;
+        const prefixWidth = itemObj.prefixWidth;
+
+        lines.forEach((line, lIdx) => {
+          ctx.textBaseline = 'alphabetic';
+
+          if (lIdx === 0) {
+            // 1行目: プレフィックス（番号・正解単語）を強調表示
+            ctx.fillStyle = isAnswerKey ? '#0f172a' : '#000000';
+            ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif`;
+            ctx.fillText(prefix, colX, curY + fontSize - 1);
+
+            ctx.fillStyle = '#1e293b';
+            ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif`;
+            const textAfterPrefix = line.substring(prefix.length);
+            ctx.fillText(textAfterPrefix, colX + prefixWidth, curY + fontSize - 1);
+          } else {
+            // 2行目以降: ぶら下げインデントで見やすく揃える
+            ctx.fillStyle = '#1e293b';
+            ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif`;
+            ctx.fillText(line, colX + hangIndent, curY + fontSize - 1);
+          }
+
+          curY += lineHeight;
+        });
+
+        curY += itemGap;
+      }
+    });
+  });
 
   return canvas;
 }
