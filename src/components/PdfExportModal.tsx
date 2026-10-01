@@ -41,10 +41,11 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
   const acrossClues = grid.placedWords.filter((w) => w.direction === 'across');
   const downClues = grid.placedWords.filter((w) => w.direction === 'down');
+  const totalClues = acrossClues.length + downClues.length;
 
-  // 印刷プレビュー用ヒント分割レンダリング（3カラム時は左右バランス均等配置でA4はみ出しを完全防止）
+  // 印刷プレビュー用ヒント分割レンダリング（単語数に応じて2列または3列に綺麗に分配）
   const renderCluesSection = (isAnswerKey: boolean) => {
-    const is3Col = grid.placedWords.length >= 24;
+    const is3Col = totalClues >= 26;
 
     const renderItem = (w: PlacedWord) => (
       <li key={`pdf-${isAnswerKey ? 'a' : 'q'}-${w.direction}-${w.id}`}>
@@ -101,7 +102,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 return <h3 key={item.key}>{item.title}</h3>;
               }
               return (
-                <ol key={item.key} className="sheet-clues-list" style={{ marginBottom: '3px' }}>
+                <ol key={item.key} className="sheet-clues-list" style={{ marginBottom: '4px' }}>
                   {renderItem(item.word)}
                 </ol>
               );
@@ -112,7 +113,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     );
   };
 
-  // 復元用パッケージの生成
+  // 復元用パッケージ
   const puzzlePackage: CrosswordPuzzlePackage = {
     version: '1.0.0',
     title,
@@ -133,7 +134,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   const handleDownloadQuestionPdf = async () => {
     setExporting(true);
     setErrorMessage(null);
-    setExportStatus('問題用紙のPDFを生成中...');
+    setExportStatus('問題用紙（2枚組PDF: 盤面＋ヒント）を生成中...');
     try {
       await exportCrosswordToPdf({
         title,
@@ -148,7 +149,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     } catch (err: any) {
       console.error('PDF export error (Question):', err);
       const msg = err instanceof Error ? err.message : String(err);
-      setErrorMessage(`PDFの生成中にエラーが発生しました: ${msg}（下の「ブラウザで直接印刷 / PDF保存」ボタンもお試しいただけます）`);
+      setErrorMessage(`PDFの生成中にエラーが発生しました: ${msg}`);
     } finally {
       setExporting(false);
       setExportStatus('');
@@ -158,7 +159,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   const handleDownloadAnswerPdf = async () => {
     setExporting(true);
     setErrorMessage(null);
-    setExportStatus('解答用紙のPDFを生成中...');
+    setExportStatus('解答用紙（2枚組PDF: 解答盤面＋解答ヒント）を生成中...');
     try {
       await exportCrosswordToPdf({
         title,
@@ -173,7 +174,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     } catch (err: any) {
       console.error('PDF export error (Answer):', err);
       const msg = err instanceof Error ? err.message : String(err);
-      setErrorMessage(`PDFの生成中にエラーが発生しました: ${msg}（下の「ブラウザで直接印刷 / PDF保存」ボタンもお試しいただけます）`);
+      setErrorMessage(`PDFの生成中にエラーが発生しました: ${msg}`);
     } finally {
       setExporting(false);
       setExportStatus('');
@@ -183,7 +184,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   const handleDownloadBoth = async () => {
     setExporting(true);
     setErrorMessage(null);
-    setExportStatus('問題と解答の2ページPDFを一括生成中...');
+    setExportStatus('問題・解答セット（全4枚組PDF）を一括生成中...');
     try {
       await exportBothCrosswordsToPdf({
         title,
@@ -197,7 +198,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     } catch (err: any) {
       console.error('PDF export error (Both):', err);
       const msg = err instanceof Error ? err.message : String(err);
-      setErrorMessage(`PDFの生成中にエラーが発生しました: ${msg}（下の「ブラウザで直接印刷 / PDF保存」ボタンもお試しいただけます）`);
+      setErrorMessage(`PDFの生成中にエラーが発生しました: ${msg}`);
     } finally {
       setExporting(false);
       setExportStatus('');
@@ -213,7 +214,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
       <div className="modal-content pdf-modal">
         <div className="modal-header">
           <h2>
-            <Printer size={22} /> PDFダウンロード設定・プレビュー
+            <Printer size={22} /> PDFダウンロード設定・プレビュー（盤面・ヒント2枚組仕様）
           </h2>
           <button className="btn-icon" onClick={onClose}>
             <X size={20} />
@@ -248,55 +249,35 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
             {/* 背景・インク節約スタイル選択 */}
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-                <Droplets size={16} color="var(--primary)" /> 盤面背景スタイル（インク節約設定）
+                <Droplets size={16} /> 印刷テーマ（省インク設定）
               </label>
-              <div style={{ display: 'flex', gap: '16px', marginTop: '6px', flexWrap: 'wrap' }}>
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 14px',
-                  borderRadius: '6px',
-                  border: theme === 'ink-saver' ? '2px solid var(--primary)' : '1px solid var(--border)',
-                  background: theme === 'ink-saver' ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-secondary)',
-                  cursor: 'pointer',
-                  fontWeight: theme === 'ink-saver' ? 600 : 400,
-                }}>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '6px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input
                     type="radio"
-                    name="pdf-theme"
+                    name="printTheme"
+                    value="ink-saver"
                     checked={theme === 'ink-saver'}
                     onChange={() => setTheme('ink-saver')}
-                    style={{ cursor: 'pointer' }}
                   />
-                  <span>🌱 <strong>白背景・省インク（印刷推奨）</strong>：黒マスを薄い斜線にしてインクくっつきを防止</span>
+                  <span>🌱 白背景・省インク（推奨：黒ベタなし、薄い斜線でインクを90%節約）</span>
                 </label>
-
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 14px',
-                  borderRadius: '6px',
-                  border: theme === 'classic' ? '2px solid var(--primary)' : '1px solid var(--border)',
-                  background: theme === 'classic' ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-secondary)',
-                  cursor: 'pointer',
-                  fontWeight: theme === 'classic' ? 600 : 400,
-                }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input
                     type="radio"
-                    name="pdf-theme"
+                    name="printTheme"
+                    value="classic"
                     checked={theme === 'classic'}
                     onChange={() => setTheme('classic')}
-                    style={{ cursor: 'pointer' }}
                   />
-                  <span>⬛ <strong>黒マス（クラシック）</strong>：従来の黒ベタ塗りマス</span>
+                  <span>⬛ クラシック（通常の黒マス塗りつぶし）</span>
                 </label>
               </div>
             </div>
 
-            <div className="form-group checkbox-group" style={{ gridColumn: '1 / -1' }}>
-              <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600, color: 'var(--text-primary)' }}>
+            {/* 頭文字ヒント印字 */}
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={showFirstLetters}
@@ -370,21 +351,21 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
               disabled={exporting}
               style={{ fontWeight: 'bold' }}
             >
-              <Sparkles size={16} /> 【推奨】問題＋解答セット (1つのPDF) をダウンロード
+              <Sparkles size={16} /> 【推奨】問題＋解答セット (全4枚組PDF) をダウンロード
             </button>
             <button
               className="btn btn-primary"
               onClick={handleDownloadQuestionPdf}
               disabled={exporting}
             >
-              <Download size={16} /> 【問題用紙のみ】PDFダウンロード
+              <Download size={16} /> 📄 【問題用紙のみ】(2枚組PDF)
             </button>
             <button
               className="btn btn-secondary"
               onClick={handleDownloadAnswerPdf}
               disabled={exporting}
             >
-              <CheckSquare size={16} /> 【解答用紙のみ】PDFダウンロード
+              <CheckSquare size={16} /> ✅ 【解答用紙のみ】(2枚組PDF)
             </button>
             <button
               className="btn btn-outline"
@@ -397,20 +378,34 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
             </button>
           </div>
 
-          <p className="pdf-preview-notice">
-            ※以下の内容がA4サイズちょうど1枚ずつ印刷用PDFとして出力されます。PDFには再編集・完全復元用データが自動埋め込まれます。
-          </p>
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.08)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '6px',
+            padding: '8px 12px',
+            fontSize: '0.86rem',
+            color: '#93c5fd',
+            margin: '10px 0 16px 0'
+          }}>
+            💡 <strong>2枚組独立レイアウト仕様:</strong> 1ページ目に特大クロスワード盤面、2ページ目に特大フォントのヒント一覧が印刷されます。盤面も手書きしやすく、ヒントも大きな文字でゆったり読めます。
+          </div>
 
           {/* 印刷用プレビューエリア */}
           <div className="pdf-preview-scroll">
-            {/* 問題用紙プレビュー */}
-            <div id="pdf-print-area-question" className="pdf-print-sheet">
+            {/* ====== 問題用紙 第1ページ: 盤面 ====== */}
+            <div className="preview-page-divider">
+              <span className="badge">問題用紙 1ページ目 (特大クロスワード盤面)</span>
+            </div>
+            <div id="pdf-print-area-question-grid" className="pdf-print-sheet">
               <div className="sheet-header">
                 <h2 className="sheet-title">{title}</h2>
                 <div className="sheet-subtitle">{subtitle}</div>
               </div>
+              <div style={{ fontSize: '0.82rem', color: '#64748b', margin: '4px 0 8px 0' }}>
+                ※ヒント・問題英文は2ページ目に掲載されています。
+              </div>
 
-              <div className="sheet-grid-wrapper">
+              <div className="sheet-grid-wrapper large-grid">
                 <div
                   className={`sheet-grid theme-${theme}`}
                   style={{
@@ -430,7 +425,6 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                               {cell.acrossNumber || cell.downNumber}
                             </span>
                           )}
-                          {/* 頭文字ヒント印字 */}
                           {!cell.isBlack && showFirstLetters && isStartCell && (
                             <span className="sheet-cell-first-letter">
                               {cell.letter}
@@ -443,17 +437,38 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 </div>
               </div>
 
-              {renderCluesSection(false)}
+              <div className="sheet-footer">1 / 2 ページ （クロスワード盤面）</div>
             </div>
 
-            {/* 解答用紙プレビュー */}
-            <div id="pdf-print-area-answer" className="pdf-print-sheet answer-sheet">
+            {/* ====== 問題用紙 第2ページ: ヒント一覧 ====== */}
+            <div className="preview-page-divider">
+              <span className="badge">問題用紙 2ページ目 (特大フォント ヒント一覧)</span>
+            </div>
+            <div id="pdf-print-area-question-clues" className="pdf-print-sheet">
               <div className="sheet-header">
-                <h2 className="sheet-title">{title} (解答)</h2>
-                <div className="sheet-subtitle">{subtitle}</div>
+                <h2 className="sheet-title">{title} - ヒント一覧</h2>
+                <div className="sheet-subtitle">ヨコ (Across) & タテ (Down)</div>
               </div>
 
-              <div className="sheet-grid-wrapper">
+              {renderCluesSection(false)}
+
+              <div className="sheet-footer">2 / 2 ページ （ヒント一覧）</div>
+            </div>
+
+            {/* ====== 解答用紙 第1ページ: 解答盤面 ====== */}
+            <div className="preview-page-divider">
+              <span className="badge">解答用紙 1ページ目 (解答盤面)</span>
+            </div>
+            <div id="pdf-print-area-answer-grid" className="pdf-print-sheet answer-sheet">
+              <div className="sheet-header">
+                <h2 className="sheet-title">{title} (解答)</h2>
+                <div className="sheet-subtitle">Answer Sheet</div>
+              </div>
+              <div style={{ fontSize: '0.82rem', color: '#64748b', margin: '4px 0 8px 0' }}>
+                ※解答付きヒント・全英文は2ページ目に掲載されています。
+              </div>
+
+              <div className="sheet-grid-wrapper large-grid">
                 <div
                   className={`sheet-grid theme-${theme}`}
                   style={{
@@ -480,7 +495,22 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 </div>
               </div>
 
+              <div className="sheet-footer">1 / 2 ページ （解答盤面）</div>
+            </div>
+
+            {/* ====== 解答用紙 第2ページ: 解答付きヒント一覧 ====== */}
+            <div className="preview-page-divider">
+              <span className="badge">解答用紙 2ページ目 (解答付きヒント一覧)</span>
+            </div>
+            <div id="pdf-print-area-answer-clues" className="pdf-print-sheet answer-sheet">
+              <div className="sheet-header">
+                <h2 className="sheet-title">{title} - 解答付きヒント</h2>
+                <div className="sheet-subtitle">ヨコ (Across) & タテ (Down)</div>
+              </div>
+
               {renderCluesSection(true)}
+
+              <div className="sheet-footer">2 / 2 ページ （解答付きヒント一覧）</div>
             </div>
           </div>
         </div>

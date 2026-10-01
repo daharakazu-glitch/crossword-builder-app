@@ -1056,6 +1056,14 @@
   margin: 2px 0 4px 0;
 }
 
+.sheet-grid-wrapper.large-grid {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 10px 0;
+}
+
 .sheet-grid {
   display: grid;
   gap: 1px;
@@ -1064,6 +1072,11 @@
   width: 128mm;
   height: 128mm;
   max-width: 100%;
+}
+
+.sheet-grid-wrapper.large-grid .sheet-grid {
+  width: 172mm;
+  height: 172mm;
 }
 
 .sheet-grid.theme-ink-saver {
@@ -1099,6 +1112,12 @@
   line-height: 1;
 }
 
+.sheet-grid-wrapper.large-grid .sheet-cell-num {
+  font-size: 11px;
+  top: 2px;
+  left: 3px;
+}
+
 .sheet-cell-letter {
   display: flex;
   align-items: center;
@@ -1109,35 +1128,64 @@
   color: #000;
 }
 
+.sheet-grid-wrapper.large-grid .sheet-cell-letter {
+  font-size: 22px;
+}
+
 .sheet-clues-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  font-size: 1.05rem;
-  line-height: 1.4;
-  margin-top: 8px;
+  gap: 24px;
+  font-size: 1.15rem;
+  line-height: 1.45;
+  margin-top: 12px;
 }
 
 .sheet-clues-section.col-3 {
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 14px;
-  font-size: 0.88rem;
-  line-height: 1.32;
-  margin-top: 6px;
+  gap: 16px;
+  font-size: 0.98rem;
+  line-height: 1.38;
+  margin-top: 10px;
 }
 
 .sheet-clues-col h3 {
   border-bottom: 2px solid #000;
-  font-size: 1.08rem;
+  font-size: 1.12rem;
   font-weight: 800;
+  padding-bottom: 3px;
+  margin: 0 0 8px 0;
+}
+
+.sheet-clues-section.col-3 .sheet-clues-col h3 {
+  font-size: 1.02rem;
   padding-bottom: 2px;
   margin: 0 0 6px 0;
 }
 
-.sheet-clues-section.col-3 .sheet-clues-col h3 {
-  font-size: 0.98rem;
-  padding-bottom: 2px;
-  margin: 0 0 4px 0;
+.sheet-footer {
+  margin-top: auto;
+  padding-top: 8px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #64748b;
+  border-top: 1px solid #e2e8f0;
+}
+
+.preview-page-divider {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0 8px 0;
+}
+
+.preview-page-divider .badge {
+  background: #4f46e5;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 4px 14px;
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
 }
 
 .sheet-clues-list {
