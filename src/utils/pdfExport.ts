@@ -208,13 +208,16 @@ function findOptimalLayout(
   const totalClues = acrossClues.length + downClues.length;
 
   // 盤面セルの最小・理想サイズ制約
-  // マス目を手書きに最適なプロサイズ（1マス約32〜36px）に最適化し、ヒント領域を最大化
-  const minCellPx = 28;
-  const minGridPx = Math.max(480, gridCellCount * minCellPx);
-  const idealMaxGridPx = Math.min(740, Math.max(minGridPx, gridCellCount * 36));
+  // 単語数が多い場合（24語以上）やグリッドが大きい場合は、ヒント行数が多いため盤面サイズを適切に制御しヒント領域を確保
+  const isLargePuzzle = totalClues >= 24 || gridCellCount >= 20;
+  const minCellPx = isLargePuzzle ? 20 : 28;
+  const minGridPx = Math.max(420, gridCellCount * minCellPx);
+  const idealMaxGridPx = isLargePuzzle
+    ? Math.min(620, Math.max(minGridPx, gridCellCount * 24.5))
+    : Math.min(740, Math.max(minGridPx, gridCellCount * 36));
 
-  // 厳格な安全マージン（計算誤差やベースラインのブレを完全吸収）
-  const safetyMargin = 40;
+  // 厳格な安全マージン（印刷マージンやデバイス差によるはみ出しを確実に防止）
+  const safetyMargin = isLargePuzzle ? 80 : 40;
   const usableHeightForContent = totalAvailableHeight - safetyMargin;
 
   // 評価ヘルパー: 指定のフォントサイズとモードでレイアウトを計算
@@ -732,31 +735,13 @@ export async function exportCrosswordToPdf(options: ExportPdfOptions): Promise<v
 
   pdf.addImage(imgData, 'JPEG', posX, posY, printWidth, printHeight, undefined, 'FAST');
 
-  // 逆復元用のパズルメタデータを安全に埋め込み
-  if (options.puzzlePackage) {
-    try {
-      const encoded = encodePuzzlePackage(options.puzzlePackage);
-      if (encoded) {
-        pdf.setProperties({
-          title: options.title || 'Crossword Puzzle',
-          subject: options.subtitle || 'English Crossword Puzzle',
-          author: 'Crossword Builder Pro',
-          keywords: `CROSSWORD_DATA:${encoded}`,
-          creator: 'Crossword Builder Pro',
-        });
-
-        try {
-          pdf.setFontSize(0.5);
-          pdf.setTextColor(255, 255, 255);
-          pdf.text(`CROSSWORD_DATA:${encoded}`, 1, 1);
-        } catch (_e) {
-          // ignore
-        }
-      }
-    } catch (metaErr) {
-      console.warn('Failed to embed metadata in PDF:', metaErr);
-    }
-  }
+  // 標準PDFメタデータ設定（長大な文字列や非標準text streamを完全排除し、どのPDFビューアでも100%確実に開ける構造）
+  pdf.setProperties({
+    title: options.title || 'Crossword Puzzle',
+    subject: options.subtitle || 'English Crossword Puzzle',
+    author: 'Crossword Builder Pro',
+    creator: 'Crossword Builder Pro',
+  });
 
   const safeTitle = sanitizeFilename(options.title);
   const suffix = options.isAnswerKey ? '_解答' : '_問題';
@@ -820,34 +805,13 @@ export async function exportBothCrosswordsToPdf(options: ExportBothPdfOptions): 
   const posY_A = margin + Math.max(0, (pdfHeight - margin * 2 - printHeightA) / 2);
   pdf.addImage(imgDataA, 'JPEG', margin, posY_A, printWidth, printHeightA, undefined, 'FAST');
 
-  // 逆復元用のパズルメタデータを安全に埋め込み
-  if (options.puzzlePackage) {
-    try {
-      const encoded = encodePuzzlePackage(options.puzzlePackage);
-      if (encoded) {
-        pdf.setProperties({
-          title: options.title || 'Crossword Puzzle',
-          subject: options.subtitle || 'English Crossword Puzzle',
-          author: 'Crossword Builder Pro',
-          keywords: `CROSSWORD_DATA:${encoded}`,
-          creator: 'Crossword Builder Pro',
-        });
-
-        try {
-          pdf.setFontSize(0.5);
-          pdf.setTextColor(255, 255, 255);
-          pdf.setPage(1);
-          pdf.text(`CROSSWORD_DATA:${encoded}`, 1, 1);
-          pdf.setPage(2);
-          pdf.text(`CROSSWORD_DATA:${encoded}`, 1, 1);
-        } catch (_e) {
-          // ignore
-        }
-      }
-    } catch (metaErr) {
-      console.warn('Failed to embed metadata in PDF:', metaErr);
-    }
-  }
+  // 標準PDFメタデータ設定（長大な文字列や非標準text streamを完全排除し、どのPDFビューアでも100%確実に開ける構造）
+  pdf.setProperties({
+    title: options.title || 'Crossword Puzzle',
+    subject: options.subtitle || 'English Crossword Puzzle',
+    author: 'Crossword Builder Pro',
+    creator: 'Crossword Builder Pro',
+  });
 
   const safeTitle = sanitizeFilename(options.title);
   const filename = `${safeTitle}_問題・解答セット.pdf`;

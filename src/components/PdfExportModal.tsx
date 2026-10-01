@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Download, CheckSquare, Printer, Sparkles, Type, Droplets } from 'lucide-react';
-import type { CrosswordGrid, HintStyle, GridTheme, WordItem, CrosswordPuzzlePackage } from '../types/crossword';
+import type { CrosswordGrid, HintStyle, GridTheme, WordItem, CrosswordPuzzlePackage, PlacedWord } from '../types/crossword';
 import { exportCrosswordToPdf, exportBothCrosswordsToPdf, formatClueText } from '../utils/pdfExport';
 
 interface PdfExportModalProps {
@@ -41,6 +41,76 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
   const acrossClues = grid.placedWords.filter((w) => w.direction === 'across');
   const downClues = grid.placedWords.filter((w) => w.direction === 'down');
+
+  // 印刷プレビュー用ヒント分割レンダリング（3カラム時は左右バランス均等配置でA4はみ出しを完全防止）
+  const renderCluesSection = (isAnswerKey: boolean) => {
+    const is3Col = grid.placedWords.length >= 24;
+
+    const renderItem = (w: PlacedWord) => (
+      <li key={`pdf-${isAnswerKey ? 'a' : 'q'}-${w.direction}-${w.id}`}>
+        <strong>{w.number}.</strong>{' '}
+        {isAnswerKey && (
+          <span style={{ fontWeight: 'bold', color: '#1e293b' }}>
+            [{w.word.toLowerCase()}] -{' '}
+          </span>
+        )}
+        {formatClueText(w, hintStyle)}
+      </li>
+    );
+
+    if (!is3Col) {
+      return (
+        <div className="sheet-clues-section">
+          <div className="sheet-clues-col">
+            <h3>ヨコ (Across){isAnswerKey ? ' 解答付きヒント' : ''}</h3>
+            <ol className="sheet-clues-list">{acrossClues.map(renderItem)}</ol>
+          </div>
+          <div className="sheet-clues-col">
+            <h3>タテ (Down){isAnswerKey ? ' 解答付きヒント' : ''}</h3>
+            <ol className="sheet-clues-list">{downClues.map(renderItem)}</ol>
+          </div>
+        </div>
+      );
+    }
+
+    // 3カラム均等分割
+    type ClueEntry =
+      | { type: 'heading'; title: string; key: string }
+      | { type: 'clue'; word: PlacedWord; key: string };
+
+    const allEntries: ClueEntry[] = [
+      { type: 'heading', title: `ヨコ (Across)${isAnswerKey ? ' 解答付きヒント' : ''}`, key: 'h-across' },
+      ...acrossClues.map((w) => ({ type: 'clue' as const, word: w, key: `clue-${w.id}` })),
+      { type: 'heading', title: `タテ (Down)${isAnswerKey ? ' 解答付きヒント' : ''}`, key: 'h-down' },
+      ...downClues.map((w) => ({ type: 'clue' as const, word: w, key: `clue-${w.id}` })),
+    ];
+
+    const perCol = Math.ceil(allEntries.length / 3);
+    const cols = [
+      allEntries.slice(0, perCol),
+      allEntries.slice(perCol, perCol * 2),
+      allEntries.slice(perCol * 2),
+    ];
+
+    return (
+      <div className="sheet-clues-section col-3">
+        {cols.map((colItems, cIdx) => (
+          <div key={`col-${cIdx}`} className="sheet-clues-col">
+            {colItems.map((item) => {
+              if (item.type === 'heading') {
+                return <h3 key={item.key}>{item.title}</h3>;
+              }
+              return (
+                <ol key={item.key} className="sheet-clues-list" style={{ marginBottom: '3px' }}>
+                  {renderItem(item.word)}
+                </ol>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   // 復元用パッケージの生成
   const puzzlePackage: CrosswordPuzzlePackage = {
@@ -373,28 +443,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 </div>
               </div>
 
-              <div className={`sheet-clues-section ${grid.placedWords.length >= 24 ? 'col-3' : ''}`}>
-                <div className="sheet-clues-col">
-                  <h3>ヨコ (Across)</h3>
-                  <ol className="sheet-clues-list">
-                    {acrossClues.map((w) => (
-                      <li key={`pdf-q-across-${w.id}`}>
-                        <strong>{w.number}.</strong> {formatClueText(w, hintStyle)}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-                <div className="sheet-clues-col">
-                  <h3>タテ (Down)</h3>
-                  <ol className="sheet-clues-list">
-                    {downClues.map((w) => (
-                      <li key={`pdf-q-down-${w.id}`}>
-                        <strong>{w.number}.</strong> {formatClueText(w, hintStyle)}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              </div>
+              {renderCluesSection(false)}
             </div>
 
             {/* 解答用紙プレビュー */}
@@ -431,28 +480,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 </div>
               </div>
 
-              <div className={`sheet-clues-section ${grid.placedWords.length >= 24 ? 'col-3' : ''}`}>
-                <div className="sheet-clues-col">
-                  <h3>ヨコ (Across) 解答付きヒント</h3>
-                  <ol className="sheet-clues-list">
-                    {acrossClues.map((w) => (
-                      <li key={`pdf-a-across-${w.id}`}>
-                        <strong>{w.number}.</strong> <span style={{ fontWeight: 'bold', color: '#1e293b' }}>[{w.word.toLowerCase()}]</span> - {formatClueText(w, hintStyle)}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-                <div className="sheet-clues-col">
-                  <h3>タテ (Down) 解答付きヒント</h3>
-                  <ol className="sheet-clues-list">
-                    {downClues.map((w) => (
-                      <li key={`pdf-a-down-${w.id}`}>
-                        <strong>{w.number}.</strong> <span style={{ fontWeight: 'bold', color: '#1e293b' }}>[{w.word.toLowerCase()}]</span> - {formatClueText(w, hintStyle)}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              </div>
+              {renderCluesSection(true)}
             </div>
           </div>
         </div>
