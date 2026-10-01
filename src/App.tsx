@@ -111,8 +111,17 @@ export const App: React.FC = () => {
     setWords((prev) => [...prev, word]);
   };
 
-  const handleAddMultipleWords = (newWords: WordItem[]) => {
+  const handleAddMultipleWords = (newWords: WordItem[], forceReplace: boolean = false) => {
     setWords((prev) => {
+      // 初期サンプルのまま（または置換フラグが有効）ならアップロード内容で綺麗に置き換える
+      const isInitialSample =
+        prev.length === INITIAL_SAMPLE_WORDS.length &&
+        prev.every((w, idx) => w.word === INITIAL_SAMPLE_WORDS[idx]?.word);
+
+      if (forceReplace || isInitialSample) {
+        return newWords.slice(0, 100);
+      }
+
       const combined = [...prev];
       for (const item of newWords) {
         if (combined.length >= 100) break;
@@ -134,9 +143,7 @@ export const App: React.FC = () => {
   };
 
   const handleClearAll = () => {
-    if (window.confirm('すべての単語をクリアしますか？')) {
-      setWords([]);
-    }
+    setWords([]);
   };
 
   // セルクリック操作

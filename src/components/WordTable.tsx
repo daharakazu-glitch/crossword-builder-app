@@ -68,6 +68,8 @@ export const WordTable: React.FC<WordTableProps> = ({
 
   const progressPercent = Math.min(100, Math.round((words.length / 100) * 100));
 
+  const [confirmClear, setConfirmClear] = useState(false);
+
   return (
     <div className="word-table-card">
       <div className="table-header">
@@ -103,9 +105,38 @@ export const WordTable: React.FC<WordTableProps> = ({
             <Sparkles size={14} /> 100語一括ロード
           </button>
           {words.length > 0 && (
-            <button className="btn btn-sm btn-danger-outline" onClick={onClearAll}>
-              <Trash2 size={14} /> 全削除
-            </button>
+            confirmClear ? (
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-danger"
+                  style={{ background: '#ef4444', color: '#fff', fontWeight: 'bold' }}
+                  onClick={() => {
+                    onClearAll();
+                    setConfirmClear(false);
+                  }}
+                  title="クリックしてすべての単語を削除"
+                >
+                  <Check size={14} /> 本当に全削除する
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline"
+                  onClick={() => setConfirmClear(false)}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-sm btn-danger-outline"
+                onClick={() => setConfirmClear(true)}
+                title="登録されている単語をすべて削除"
+              >
+                <Trash2 size={14} /> 全削除
+              </button>
+            )
           )}
         </div>
       </div>
@@ -211,8 +242,13 @@ export const WordTable: React.FC<WordTableProps> = ({
                               <Edit2 size={14} />
                             </button>
                             <button
+                              type="button"
                               className="btn-icon-sm delete"
-                              onClick={() => onDeleteWord(item.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteWord(item.id);
+                              }}
+                              title="この単語を削除"
                             >
                               <Trash2 size={14} />
                             </button>
