@@ -164,20 +164,43 @@ export function renderGridPageCanvas(options: RenderSheetOptions): HTMLCanvasEle
   // ヘッダー部
   const title = options.title || '英単語クロスワード';
   const displayTitle = options.isAnswerKey ? `${title} (解答)` : title;
+  const subtitle = options.subtitle || (options.isAnswerKey ? 'Answer Sheet' : 'Name: ______________________');
 
   ctx.fillStyle = '#000000';
-  ctx.font = 'bold 36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText(displayTitle, marginX, marginTop);
+  ctx.font = 'bold 34px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
+  const titleWidth = ctx.measureText(displayTitle).width;
+  ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
+  const subWidth = ctx.measureText(subtitle).width;
 
-  const subtitle = options.subtitle || (options.isAnswerKey ? 'Answer Sheet' : 'Name: ______________________');
-  ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
-  ctx.textAlign = 'right';
-  ctx.fillText(subtitle, marginX + contentWidth, marginTop + 10);
+  let headerBottomY = marginTop + 52;
+
+  if (titleWidth + subWidth + 35 > contentWidth) {
+    // 重なり防止：タイトルを1行目、名前欄を2行目に配置
+    ctx.font = 'bold 34px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(displayTitle, marginX, marginTop);
+
+    ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(subtitle, marginX + contentWidth, marginTop + 44);
+
+    headerBottomY = marginTop + 80;
+  } else {
+    // 1行左右配置
+    ctx.font = 'bold 34px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(displayTitle, marginX, marginTop);
+
+    ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(subtitle, marginX + contentWidth, marginTop + 8);
+
+    headerBottomY = marginTop + 52;
+  }
 
   // ヘッダー下線
-  const headerBottomY = marginTop + 52;
   ctx.strokeStyle = '#000000';
   ctx.lineWidth = 2.5;
   ctx.beginPath();
