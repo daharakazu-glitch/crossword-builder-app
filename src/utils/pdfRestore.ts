@@ -25,17 +25,40 @@ export interface RestoreResult {
 }
 
 /**
- * Base64エンコードされたパズルパッケージをデコード
+ * Base64エンコードされたパズルパッケージをデコード (UTF-8マルチバイト安全)
  */
 export function decodePuzzlePackage(encoded: string): CrosswordPuzzlePackage | null {
   try {
-    const jsonStr = decodeURIComponent(escape(atob(encoded)));
+    const clean = encoded.replace(/[\r\n\s]/g, '');
+    const binary = atob(clean);
+    let jsonStr = '';
+    if (typeof TextDecoder !== 'undefined') {
+      try {
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        jsonStr = new TextDecoder('utf-8').decode(bytes);
+      } catch {
+        jsonStr = decodeURIComponent(escape(binary));
+      }
+    } else {
+      jsonStr = decodeURIComponent(escape(binary));
+    }
     const data = JSON.parse(jsonStr);
     if (data && data.grid && data.words) {
       return data as CrosswordPuzzlePackage;
     }
   } catch (e) {
-    console.error('Failed to decode puzzle package:', e);
+    try {
+      const legacyStr = decodeURIComponent(escape(atob(encoded.replace(/[\r\n\s]/g, ''))));
+      const data = JSON.parse(legacyStr);
+      if (data && data.grid && data.words) {
+        return data as CrosswordPuzzlePackage;
+      }
+    } catch (e2) {
+      console.error('Failed to decode puzzle package:', e, e2);
+    }
   }
   return null;
 }
@@ -51,13 +74,62 @@ export async function restoreCrosswordFromPdf(
 
   onProgress?.(10, 'PDFデータを解析中...');
 
+  // --- 0. 超高速バイナリスキャン (埋め込みコメント / コードを0.01秒で直接抽出) ---
+  try {
+    const uint8 = new Uint8Array(arrayBuffer);
+    const rawContent = new TextDecoder('latin1').decode(uint8);
+
+    // 新規格: %CROSSWORD_DATA_START%...%CROSSWORD_DATA_END%
+    const startIdx = rawContent.indexOf('%CROSSWORD_DATA_START%');
+    if (startIdx !== -1) {
+      const endIdx = rawContent.indexOf('%CROSSWORD_DATA_END%', startIdx);
+      if (endIdx !== -1) {
+        const payload = rawContent.slice(startIdx + '%CROSSWORD_DATA_START%'.length, endIdx).trim();
+        const decoded = decodePuzzlePackage(payload);
+        if (decoded) {
+          onProgress?.(100, 'パズル配置を100%完全復元しました！');
+          return {
+            success: true,
+            message: 'PDFからクロスワードパズル配置・単語・ヒントを完全復元しました。',
+            source: 'metadata',
+            package: decoded,
+            words: decoded.words,
+            title: decoded.title,
+            hintStyle: decoded.hintStyle,
+          };
+        }
+      }
+    }
+
+    // 従来規格: CROSSWORD_DATA:Base64
+    const legacyMatch = rawContent.match(/CROSSWORD_DATA:([A-Za-z0-9+/=]+)/);
+    if (legacyMatch && legacyMatch[1]) {
+      const decoded = decodePuzzlePackage(legacyMatch[1]);
+      if (decoded) {
+        onProgress?.(100, 'パズル配置を100%完全復元しました！');
+        return {
+          success: true,
+          message: 'PDFからクロスワードパズル配置・単語・ヒントを完全復元しました。',
+          source: 'metadata',
+          package: decoded,
+          words: decoded.words,
+          title: decoded.title,
+          hintStyle: decoded.hintStyle,
+        };
+      }
+    }
+  } catch (scanErr) {
+    console.warn('Fast binary scan failed, falling back to PDF.js:', scanErr);
+  }
+
+  // --- 1. PDF.js による文書読み込み (メタデータ・テキストレイヤー検証) ---
   const loadingTask = pdfjsLib.getDocument({
     data: arrayBuffer,
     useSystemFonts: true,
   });
   const pdfDoc = await loadingTask.promise;
 
-  // --- 1. メタデータからの完全復元 ---
+  // メタデータからの完全復元チェック
   try {
     const metadata = await pdfDoc.getMetadata();
     const info = metadata?.info as any;
@@ -148,21 +220,23 @@ export async function restoreCrosswordFromPdf(
     let ocrCombinedText = '';
     const worker = await createWorker('eng+jpn');
 
-    // 解答用紙（通常2ページ目、または末尾ページ）に解答付きヒントがあるため、優先的に走査
+    // スキャン対象ページの優先度決定
+    // 4枚組: 4(解答ヒント) -> 2(問題ヒント) -> 3 -> 1
+    // 2枚組: 2(ヒント) -> 1(盤面)
     const pagesToScan: number[] = [];
-    if (pdfDoc.numPages >= 2) {
-      pagesToScan.push(2); // 解答用紙を先頭に
-      pagesToScan.push(1); // 次に問題用紙
+    if (pdfDoc.numPages >= 4) {
+      pagesToScan.push(4, 2, 3, 1);
+    } else if (pdfDoc.numPages >= 2) {
+      pagesToScan.push(2, 1);
     } else {
       pagesToScan.push(1);
     }
 
     for (let idx = 0; idx < pagesToScan.length; idx++) {
       const pageNum = pagesToScan[idx];
-      onProgress?.(45 + idx * 25, `${pageNum}ページ目を高精度OCR解析中...`);
+      onProgress?.(45 + idx * 20, `${pageNum}ページ目を高精度OCR解析中...`);
 
       const page = await pdfDoc.getPage(pageNum);
-      // scale 2.0 で高品質レンダリング
       const viewport = page.getViewport({ scale: 2.0 });
 
       const fullCanvas = document.createElement('canvas');
@@ -176,14 +250,21 @@ export async function restoreCrosswordFromPdf(
         const w = fullCanvas.width;
         const h = fullCanvas.height;
 
-        // 1. 下半分（ヒント欄）を左列（ヨコ）と右列（タテ）に分割クロップして認識
-        // 2段組みの横混ざりを完全に防ぎ、認識精度を劇的に向上させる
-        const cropConfigs = [
-          { name: 'across', x: w * 0.02, y: h * 0.44, width: w * 0.50, height: h * 0.55 },
-          { name: 'down',   x: w * 0.48, y: h * 0.44, width: w * 0.50, height: h * 0.55 },
-          // ヘッダー部分（タイトル取得用）
-          { name: 'header', x: 0, y: 0, width: w, height: h * 0.20 },
-        ];
+        const isDedicatedCluesPage = (pageNum === 2 && pdfDoc.numPages >= 2) || (pageNum === 4 && pdfDoc.numPages >= 4);
+
+        const cropConfigs = isDedicatedCluesPage
+          ? [
+              // ヒント専用ページ（2ページ目 / 4ページ目）: 全高で左右2分割
+              { name: 'left',   x: 0,        y: h * 0.05, width: w * 0.50, height: h * 0.92 },
+              { name: 'right',  x: w * 0.48, y: h * 0.05, width: w * 0.52, height: h * 0.92 },
+              { name: 'header', x: 0,        y: 0,        width: w,        height: h * 0.12 },
+            ]
+          : [
+              // 1枚形式: 下半分（ヒント欄）
+              { name: 'across', x: w * 0.02, y: h * 0.44, width: w * 0.50, height: h * 0.55 },
+              { name: 'down',   x: w * 0.48, y: h * 0.44, width: w * 0.50, height: h * 0.55 },
+              { name: 'header', x: 0,        y: 0,        width: w,        height: h * 0.20 },
+            ];
 
         for (const crop of cropConfigs) {
           const partCanvas = document.createElement('canvas');
