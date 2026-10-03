@@ -17,22 +17,54 @@ import { HelpModal } from './components/HelpModal';
 import { AudioPracticeModal } from './components/AudioPracticeModal';
 import { ShareModal } from './components/ShareModal';
 import { StudentPlayView } from './components/StudentPlayView';
+import { LEAP_PART3_WEEK1_PACKAGE } from './data/leapPart3Preset';
 import { FileText, Camera, Edit3 } from 'lucide-react';
 import './App.css';
 
 export const App: React.FC = () => {
-  // 生徒用URL共有パラメータのチェック (?p=... or ?play=... or #play=...)
+  // 生徒用URL共有パラメータのチェック (?play=... or ?p=... or #play=...)
   const parseSharedUrl = () => {
     try {
-      // 1. クエリパラメータのチェック (?p= or ?play=)
+      // 1. クエリパラメータのチェック (?play= or ?p= or ?leap=)
       const params = new URLSearchParams(window.location.search);
-      const queryParam = params.get('p') || params.get('play');
+      const queryParam = params.get('play') || params.get('p') || params.get('puzzle');
+      if (
+        queryParam === 'leap3_1' ||
+        queryParam === 'leap_part3_week1' ||
+        params.get('leap') === 'part3_week1' ||
+        params.has('leap3_1')
+      ) {
+        return {
+          title: LEAP_PART3_WEEK1_PACKAGE.title,
+          subtitle: LEAP_PART3_WEEK1_PACKAGE.subtitle,
+          gridSize: LEAP_PART3_WEEK1_PACKAGE.gridSize,
+          hintStyle: LEAP_PART3_WEEK1_PACKAGE.hintStyle,
+          theme: LEAP_PART3_WEEK1_PACKAGE.theme || 'classic',
+          showFirstLetters: LEAP_PART3_WEEK1_PACKAGE.showFirstLetters || false,
+          grid: LEAP_PART3_WEEK1_PACKAGE.grid,
+        };
+      }
       if (queryParam) {
         return decodeSharedPuzzle(queryParam);
       }
 
       // 2. URLハッシュのチェック (#play= or #p=)
       const hash = window.location.hash;
+      if (
+        hash.includes('play=leap3_1') ||
+        hash.includes('leap3_1') ||
+        hash.includes('leap_part3_week1')
+      ) {
+        return {
+          title: LEAP_PART3_WEEK1_PACKAGE.title,
+          subtitle: LEAP_PART3_WEEK1_PACKAGE.subtitle,
+          gridSize: LEAP_PART3_WEEK1_PACKAGE.gridSize,
+          hintStyle: LEAP_PART3_WEEK1_PACKAGE.hintStyle,
+          theme: LEAP_PART3_WEEK1_PACKAGE.theme || 'classic',
+          showFirstLetters: LEAP_PART3_WEEK1_PACKAGE.showFirstLetters || false,
+          grid: LEAP_PART3_WEEK1_PACKAGE.grid,
+        };
+      }
       if (hash.includes('play=')) {
         const parts = hash.split('play=');
         const encoded = parts[1]?.split('&')[0];
