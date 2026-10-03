@@ -456,6 +456,62 @@ export const App: React.FC = () => {
         onLoad100Preset={() => setWords(PRESET_100_WORDS)}
       />
 
+      {/* 配布プリント「LEAP_Part3_Week1」専用生徒用画面へのダイレクト切替バー */}
+      <div style={{
+        background: 'linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%)',
+        color: '#ffffff',
+        padding: '10px 24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        borderBottom: '1px solid #60a5fa',
+        fontSize: '14px',
+        fontWeight: 600,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '18px' }}>📢</span>
+          <span>配布プリント【LEAP_Part3_Week1 （10月5日提出）】の完全一致データ</span>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button
+            onClick={() => handleRestorePuzzlePackage(LEAP_PART3_WEEK1_PACKAGE)}
+            style={{
+              backgroundColor: '#ffffff',
+              color: '#1e3a8a',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 14px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: '13px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+            }}
+          >
+            ✏️ エディタに復元して確認
+          </button>
+          <a
+            href="./student.html"
+            style={{
+              backgroundColor: '#10b981',
+              color: '#ffffff',
+              borderRadius: '6px',
+              padding: '6px 16px',
+              textDecoration: 'none',
+              fontWeight: 'bold',
+              fontSize: '13px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+            }}
+          >
+            🎮 生徒用プレイ画面を開く (student.html)
+          </a>
+        </div>
+      </div>
+
       <main className="main-content">
         {/* 左側: 単語登録＆リスト管理パネル */}
         <section className="left-panel">
