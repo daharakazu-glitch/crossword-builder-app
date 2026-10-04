@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, QrCode, Share2, Users, GraduationCap, Link2, Loader2 } from 'lucide-react';
+import { X, Copy, Check, QrCode, Share2, Users, GraduationCap, Link2, Loader2, Gamepad2 } from 'lucide-react';
 import type { CrosswordGrid, HintStyle, GridTheme } from '../types/crossword';
 import { encodeSharedPuzzle, buildShareUrl, buildClassroomShareUrl, createShortUrl } from '../utils/shareUtils';
 
@@ -11,6 +11,7 @@ interface ShareModalProps {
   theme: GridTheme;
   showFirstLetters: boolean;
   onClose: () => void;
+  onOpenStudentView?: () => void;
 }
 
 export const ShareModal: React.FC<ShareModalProps> = ({
@@ -21,6 +22,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   theme,
   showFirstLetters,
   onClose,
+  onOpenStudentView,
 }) => {
   const [copiedShort, setCopiedShort] = useState(false);
   const [copiedDirect, setCopiedDirect] = useState(false);
@@ -307,7 +309,19 @@ export const ShareModal: React.FC<ShareModalProps> = ({
           </div>
         </div>
 
-        <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {onOpenStudentView ? (
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                onClose();
+                onOpenStudentView();
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}
+            >
+              <Gamepad2 size={16} /> 生徒用画面を開いてテストする
+            </button>
+          ) : <div />}
           <button className="btn btn-secondary" onClick={onClose}>
             閉じる
           </button>

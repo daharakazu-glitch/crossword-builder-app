@@ -138,7 +138,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           Excel / CSV / PDF / Word / TXT ファイルをドロップ
         </p>
         <p className="drop-subtitle">
-          ※作成済みPDFをドロップすると<strong>全く同じクロスワードを自動復元・再編集</strong>できます
+          ※本アプリで出力したPDFをドロップすると<strong>【パズル配置・単語・ヒント】を完全復元し、そのまま生徒用オンライン版を即時生成</strong>できます
         </p>
 
         {statusMessage && (

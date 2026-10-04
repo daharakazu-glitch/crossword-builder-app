@@ -17,54 +17,22 @@ import { HelpModal } from './components/HelpModal';
 import { AudioPracticeModal } from './components/AudioPracticeModal';
 import { ShareModal } from './components/ShareModal';
 import { StudentPlayView } from './components/StudentPlayView';
-import { LEAP_PART3_WEEK1_PACKAGE } from './data/leapPart3Preset';
 import { FileText, Camera, Edit3 } from 'lucide-react';
 import './App.css';
 
 export const App: React.FC = () => {
-  // 生徒用URL共有パラメータのチェック (?play=... or ?p=... or #play=...)
+  // 生徒用URL共有パラメータのチェック (?p=... or ?play=... or #play=...)
   const parseSharedUrl = () => {
     try {
-      // 1. クエリパラメータのチェック (?play= or ?p= or ?leap=)
+      // 1. クエリパラメータのチェック (?p= or ?play= or ?puzzle=)
       const params = new URLSearchParams(window.location.search);
-      const queryParam = params.get('play') || params.get('p') || params.get('puzzle');
-      if (
-        queryParam === 'leap3_1' ||
-        queryParam === 'leap_part3_week1' ||
-        params.get('leap') === 'part3_week1' ||
-        params.has('leap3_1')
-      ) {
-        return {
-          title: LEAP_PART3_WEEK1_PACKAGE.title,
-          subtitle: LEAP_PART3_WEEK1_PACKAGE.subtitle,
-          gridSize: LEAP_PART3_WEEK1_PACKAGE.gridSize,
-          hintStyle: LEAP_PART3_WEEK1_PACKAGE.hintStyle,
-          theme: LEAP_PART3_WEEK1_PACKAGE.theme || 'classic',
-          showFirstLetters: LEAP_PART3_WEEK1_PACKAGE.showFirstLetters || false,
-          grid: LEAP_PART3_WEEK1_PACKAGE.grid,
-        };
-      }
+      const queryParam = params.get('p') || params.get('play') || params.get('puzzle');
       if (queryParam) {
         return decodeSharedPuzzle(queryParam);
       }
 
       // 2. URLハッシュのチェック (#play= or #p=)
       const hash = window.location.hash;
-      if (
-        hash.includes('play=leap3_1') ||
-        hash.includes('leap3_1') ||
-        hash.includes('leap_part3_week1')
-      ) {
-        return {
-          title: LEAP_PART3_WEEK1_PACKAGE.title,
-          subtitle: LEAP_PART3_WEEK1_PACKAGE.subtitle,
-          gridSize: LEAP_PART3_WEEK1_PACKAGE.gridSize,
-          hintStyle: LEAP_PART3_WEEK1_PACKAGE.hintStyle,
-          theme: LEAP_PART3_WEEK1_PACKAGE.theme || 'classic',
-          showFirstLetters: LEAP_PART3_WEEK1_PACKAGE.showFirstLetters || false,
-          grid: LEAP_PART3_WEEK1_PACKAGE.grid,
-        };
-      }
       if (hash.includes('play=')) {
         const parts = hash.split('play=');
         const encoded = parts[1]?.split('&')[0];
@@ -119,6 +87,7 @@ export const App: React.FC = () => {
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [inputTab, setInputTab] = useState<'manual' | 'file' | 'ocr'>('manual');
+  const [restoredBanner, setRestoredBanner] = useState<{ title: string; count: number } | null>(null);
 
   // クロスワード生成の更新
   const handleRegenerate = useCallback(() => {
@@ -429,9 +398,26 @@ export const App: React.FC = () => {
     setIsCompleted(false);
     setActiveCell(null);
     setSelectedWordId(null);
+    setRestoredBanner({
+      title: pkg.title || '復元クロスワード',
+      count: pkg.grid?.placedWords?.length || pkg.words?.length || 0,
+    });
   };
 
-  // 生徒用プレイモードがURLで指定されている場合
+  // 現在のパズルで生徒用プレイモードを即時開くハンドラ
+  const handleOpenStudentPlayView = () => {
+    setStudentModeData({
+      title: puzzleTitle,
+      subtitle: 'Name: ________________________________',
+      gridSize: grid.size,
+      hintStyle: hintStyle,
+      theme: gridTheme,
+      showFirstLetters: showFirstLetters,
+      grid: grid,
+    });
+  };
+
+  // 生徒用プレイモードがURLまたは直接指定されている場合
   if (studentModeData) {
     return (
       <StudentPlayView
@@ -454,63 +440,79 @@ export const App: React.FC = () => {
       <Header
         onOpenHelp={() => setIsHelpModalOpen(true)}
         onLoad100Preset={() => setWords(PRESET_100_WORDS)}
+        onOpenPdfRestore={() => setInputTab('file')}
+        onOpenStudentView={handleOpenStudentPlayView}
       />
 
-      {/* 配布プリント「LEAP_Part3_Week1」専用生徒用画面へのダイレクト切替バー */}
-      <div style={{
-        background: 'linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%)',
-        color: '#ffffff',
-        padding: '10px 24px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '12px',
-        borderBottom: '1px solid #60a5fa',
-        fontSize: '14px',
-        fontWeight: 600,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '18px' }}>📢</span>
-          <span>配布プリント【LEAP_Part3_Week1 （10月5日提出）】の完全一致データ</span>
+      {/* PDF等からクロスワードが復元された際のアクションバー */}
+      {restoredBanner && (
+        <div style={{
+          background: 'linear-gradient(90deg, #059669 0%, #10b981 100%)',
+          color: '#ffffff',
+          padding: '10px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          borderBottom: '1px solid #34d399',
+          fontSize: '14px',
+          fontWeight: 600,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '18px' }}>🎉</span>
+            <span>PDFから「{restoredBanner.title}」（{restoredBanner.count}単語）を完全復元しました！</span>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              onClick={handleOpenStudentPlayView}
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#065f46',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 14px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+              }}
+            >
+              🎮 生徒用オンライン版を開く
+            </button>
+            <button
+              onClick={() => setIsShareModalOpen(true)}
+              style={{
+                backgroundColor: '#047857',
+                color: '#ffffff',
+                border: '1px solid rgba(255,255,255,0.4)',
+                borderRadius: '6px',
+                padding: '6px 14px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px'
+              }}
+            >
+              🔗 生徒用共有URLを発行
+            </button>
+            <button
+              onClick={() => setRestoredBanner(null)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontSize: '16px',
+                marginLeft: '4px'
+              }}
+              title="閉じる"
+            >
+              ✕
+            </button>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button
-            onClick={() => handleRestorePuzzlePackage(LEAP_PART3_WEEK1_PACKAGE)}
-            style={{
-              backgroundColor: '#ffffff',
-              color: '#1e3a8a',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '6px 14px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: '13px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-            }}
-          >
-            ✏️ エディタに復元して確認
-          </button>
-          <a
-            href="./student.html"
-            style={{
-              backgroundColor: '#10b981',
-              color: '#ffffff',
-              borderRadius: '6px',
-              padding: '6px 16px',
-              textDecoration: 'none',
-              fontWeight: 'bold',
-              fontSize: '13px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-            }}
-          >
-            🎮 生徒用プレイ画面を開く (student.html)
-          </a>
-        </div>
-      </div>
+      )}
 
       <main className="main-content">
         {/* 左側: 単語登録＆リスト管理パネル */}
@@ -649,6 +651,7 @@ export const App: React.FC = () => {
           theme={gridTheme}
           showFirstLetters={showFirstLetters}
           onClose={() => setIsShareModalOpen(false)}
+          onOpenStudentView={handleOpenStudentPlayView}
         />
       )}
 
