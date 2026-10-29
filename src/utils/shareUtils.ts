@@ -1,5 +1,35 @@
 import type { HintStyle, GridTheme, PlacedWord, CrosswordGrid } from '../types/crossword';
 import { reconstructGridFromPlacedWords } from './generator';
+import { deflateSync, inflateSync, strToU8, strFromU8 } from 'fflate';
+
+// 圧縮形式（v2）で使うインデックス表
+const HINT_STYLES: HintStyle[] = ['sentence_ja', 'sentence_only', 'ja_only'];
+const THEMES: GridTheme[] = ['classic', 'ink-saver'];
+const COMPACT_VERSION = 2;
+
+/**
+ * v2 圧縮ペイロード:
+ * [ver, title, subtitle, size, hintIdx, themeIdx, fl(0|1), [[word, ja, sentence, row, col, dir(0=a,1=d), number], ...]]
+ */
+type CompactWord = [string, string, string, number, number, 0 | 1, number];
+type CompactPayload = [number, string, string, number, number, number, 0 | 1, CompactWord[]];
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64UrlToBytes(str: string): Uint8Array {
+  let b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (b64.length % 4 !== 0) b64 += '=';
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
 
 export interface SharedPuzzlePayload {
   t: string;           // title
@@ -21,7 +51,8 @@ export interface SharedPuzzlePayload {
 }
 
 /**
- * パズル状態をBase64文字列に変換
+ * パズル状態を「配列化 + deflate圧縮 + URLセーフBase64」で短い文字列に変換
+ * （旧形式のJSON+Base64と比べて約60%短くなる）
  */
 export function encodeSharedPuzzle(
   title: string,
@@ -32,27 +63,60 @@ export function encodeSharedPuzzle(
   showFirstLetters: boolean,
   placedWords: PlacedWord[]
 ): string {
-  const payload: SharedPuzzlePayload = {
-    t: title,
-    s: subtitle,
-    sz: gridSize,
-    h: hintStyle,
-    th: theme,
-    fl: showFirstLetters,
-    pw: placedWords.map((w) => ({
-      id: w.id,
-      w: w.word,
-      j: w.japanese,
-      s: w.sentence,
-      r: w.row,
-      c: w.col,
-      d: w.direction === 'across' ? 'a' : 'd',
-      n: w.number,
-    })),
-  };
+  const payload: CompactPayload = [
+    COMPACT_VERSION,
+    title || '',
+    subtitle || '',
+    gridSize,
+    Math.max(0, HINT_STYLES.indexOf(hintStyle)),
+    Math.max(0, THEMES.indexOf(theme)),
+    showFirstLetters ? 1 : 0,
+    placedWords.map((w): CompactWord => [
+      w.word,
+      w.japanese || '',
+      w.sentence || '',
+      w.row,
+      w.col,
+      w.direction === 'across' ? 0 : 1,
+      w.number,
+    ]),
+  ];
 
-  const jsonStr = JSON.stringify(payload);
-  return btoa(unescape(encodeURIComponent(jsonStr)));
+  const compressed = deflateSync(strToU8(JSON.stringify(payload)), { level: 9 });
+  return bytesToBase64Url(compressed);
+}
+
+/**
+ * v2 圧縮形式を展開（失敗時は null）
+ */
+function decodeCompact(encoded: string) {
+  try {
+    const json = strFromU8(inflateSync(base64UrlToBytes(encoded)));
+    const arr = JSON.parse(json) as CompactPayload;
+    if (!Array.isArray(arr) || arr[0] !== COMPACT_VERSION || !Array.isArray(arr[7])) return null;
+    const [, t, s, sz, hIdx, thIdx, fl, words] = arr;
+    const placedWords: PlacedWord[] = words.map((w, i) => ({
+      id: String(i + 1),
+      word: w[0],
+      japanese: w[1],
+      sentence: w[2] || undefined,
+      row: w[3],
+      col: w[4],
+      direction: w[5] === 0 ? 'across' : 'down',
+      number: w[6],
+    }));
+    return {
+      title: t || '英単語クロスワードパズル',
+      subtitle: s || undefined,
+      gridSize: sz || 20,
+      hintStyle: HINT_STYLES[hIdx] || 'sentence_ja',
+      theme: THEMES[thIdx] || 'ink-saver',
+      showFirstLetters: fl === 1,
+      grid: reconstructGridFromPlacedWords(placedWords, sz || 20),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -67,6 +131,15 @@ export function decodeSharedPuzzle(encoded: string): {
   showFirstLetters: boolean;
   grid: CrosswordGrid;
 } | null {
+  // 新形式（v2 圧縮）を優先して試す
+  try {
+    const compact = decodeCompact(decodeURIComponent(encoded.trim()));
+    if (compact) return compact;
+  } catch {
+    // fallthrough to legacy
+  }
+
+  // 旧形式（JSON + Base64）: 以前配信したリンクも引き続き開けるようにする
   try {
     let clean = decodeURIComponent(encoded.trim());
     // URLセーフBase64への対応
@@ -133,37 +206,55 @@ export function buildClassroomShareUrl(targetUrl: string, title: string): string
   return `https://classroom.google.com/share?url=${encodeURIComponent(targetUrl)}&title=${encodeURIComponent(title)}`;
 }
 
+/** Google Classroom で安全に貼り付けられるURL長の目安 */
+export const CLASSROOM_SAFE_URL_LENGTH = 2000;
+
+export interface ShortUrlResult {
+  url: string;
+  shortened: boolean;
+  error?: string;
+}
+
+async function fetchWithTimeout(url: string, ms: number): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { method: 'GET', signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
- * TinyURL API を呼び出し、Google Classroom の2048文字制限を完全にクリアする短縮URLを生成
+ * 短縮URLを生成する。
+ * ※TinyURL の API はブラウザからの呼び出し(CORS)を許可していないため使用しない。
+ *   is.gd / v.gd は CORS (Access-Control-Allow-Origin: *) に対応しており、ブラウザから直接呼べる。
  */
-export async function createShortUrl(longUrl: string): Promise<string> {
-  try {
-    const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
-    const response = await fetch(apiUrl, { method: 'GET' });
-    if (response.ok) {
-      const shortUrl = (await response.text()).trim();
-      if (shortUrl.startsWith('http')) {
-        return shortUrl;
+export async function createShortUrl(longUrl: string): Promise<ShortUrlResult> {
+  const services = ['https://is.gd/create.php', 'https://v.gd/create.php'];
+  let lastError = '';
+
+  for (const endpoint of services) {
+    try {
+      const res = await fetchWithTimeout(
+        `${endpoint}?format=json&url=${encodeURIComponent(longUrl)}`,
+        8000
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data.shorturl === 'string' && data.shorturl.startsWith('http')) {
+          return { url: data.shorturl, shortened: true };
+        }
+        lastError = data.errormessage || 'unknown error';
+      } else {
+        lastError = `HTTP ${res.status}`;
       }
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
     }
-  } catch (e) {
-    console.warn('TinyURL API failed, trying fallback...', e);
+    console.warn(`URL shortener failed (${endpoint}):`, lastError);
   }
 
-  // フォールバック: is.gd API
-  try {
-    const isGdApi = `https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
-    const isGdRes = await fetch(isGdApi, { method: 'GET' });
-    if (isGdRes.ok) {
-      const data = await isGdRes.json();
-      if (data.shorturl) {
-        return data.shorturl;
-      }
-    }
-  } catch (isGdErr) {
-    console.warn('is.gd API fallback failed:', isGdErr);
-  }
-
-  // 外部短縮サービスが利用できない場合は元のURLを返す
-  return longUrl;
+  // 外部短縮サービスが利用できない場合は元のURLを返す（呼び出し側で警告表示）
+  return { url: longUrl, shortened: false, error: lastError };
 }

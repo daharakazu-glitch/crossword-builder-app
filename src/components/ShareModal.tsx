@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, QrCode, Share2, Users, GraduationCap, Link2, Loader2, Gamepad2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Copy, Check, QrCode, Share2, Users, GraduationCap, Link2, Loader2, Gamepad2, AlertTriangle, RefreshCw } from 'lucide-react';
 import type { CrosswordGrid, HintStyle, GridTheme } from '../types/crossword';
-import { encodeSharedPuzzle, buildShareUrl, buildClassroomShareUrl, createShortUrl } from '../utils/shareUtils';
+import { encodeSharedPuzzle, buildShareUrl, buildClassroomShareUrl, createShortUrl, CLASSROOM_SAFE_URL_LENGTH } from '../utils/shareUtils';
 
 interface ShareModalProps {
   grid: CrosswordGrid;
@@ -29,29 +29,34 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   const [copiedMessage, setCopiedMessage] = useState(false);
   const [shortUrl, setShortUrl] = useState<string>('');
   const [isGeneratingShort, setIsGeneratingShort] = useState(true);
+  const [shortenFailed, setShortenFailed] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [showDirectUrl, setShowDirectUrl] = useState(false);
 
-  // パズルデータをエンコード
-  const encoded = encodeSharedPuzzle(
-    title,
-    subtitle,
-    grid.size,
-    hintStyle,
-    theme,
-    showFirstLetters,
-    grid.placedWords
-  );
+  // パズルデータを圧縮エンコード
+  const directShareUrl = useMemo(() => {
+    const encoded = encodeSharedPuzzle(
+      title,
+      subtitle,
+      grid.size,
+      hintStyle,
+      theme,
+      showFirstLetters,
+      grid.placedWords
+    );
+    return buildShareUrl(encoded, true);
+  }, [title, subtitle, grid, hintStyle, theme, showFirstLetters]);
 
-  const directShareUrl = buildShareUrl(encoded, true);
-
-  // 初回マウント時に TinyURL 短縮URLを生成（Google Classroom の2048文字制限を完全クリア）
+  // 短縮URLを生成（is.gd / v.gd）
   useEffect(() => {
     let isMounted = true;
     setIsGeneratingShort(true);
+    setShortenFailed(false);
 
-    createShortUrl(directShareUrl).then((short) => {
+    createShortUrl(directShareUrl).then((result) => {
       if (isMounted) {
-        setShortUrl(short);
+        setShortUrl(result.shortened ? result.url : '');
+        setShortenFailed(!result.shortened);
         setIsGeneratingShort(false);
       }
     });
@@ -59,9 +64,11 @@ export const ShareModal: React.FC<ShareModalProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [directShareUrl]);
+  }, [directShareUrl, retryCount]);
 
   const activeShareUrl = shortUrl || directShareUrl;
+  const directTooLong = directShareUrl.length > CLASSROOM_SAFE_URL_LENGTH;
+  const activeTooLong = activeShareUrl.length > CLASSROOM_SAFE_URL_LENGTH;
   const classroomShareLink = buildClassroomShareUrl(activeShareUrl, `【英単語クロスワード】${title}`);
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(activeShareUrl)}`;
 
@@ -129,16 +136,41 @@ export const ShareModal: React.FC<ShareModalProps> = ({
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.95rem', color: '#065f46' }}>
-                <GraduationCap size={20} color="#10b981" /> Google Classroom 用リンク（文字数制限クリア済）
+                <GraduationCap size={20} color="#10b981" /> Google Classroom 用リンク
               </label>
-              <span style={{ fontSize: '0.78rem', background: '#10b981', color: '#fff', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
-                推奨・エラー防止
+              <span style={{ fontSize: '0.78rem', background: activeTooLong ? '#dc2626' : '#10b981', color: '#fff', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                {isGeneratingShort ? '生成中…' : `${activeShareUrl.length}文字${activeTooLong ? '（長すぎ）' : ''}`}
               </span>
             </div>
 
-            <p style={{ margin: '0 0 10px 0', fontSize: '0.82rem', color: '#047857', lineHeight: 1.4 }}>
-              ※Google ClassroomのURL文字数制限（2048文字）による<strong>「無効なリンク」エラーを完全に回避</strong>した短縮URLです。Classroomの添付欄に貼り付けて確実に送信できます。
-            </p>
+            {!isGeneratingShort && shortenFailed && (
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: '8px', margin: '0 0 10px 0', padding: '8px 10px',
+                background: activeTooLong ? '#fef2f2' : '#fffbeb', border: `1px solid ${activeTooLong ? '#fca5a5' : '#fcd34d'}`,
+                borderRadius: '6px', fontSize: '0.82rem', color: activeTooLong ? '#991b1b' : '#92400e', lineHeight: 1.5,
+              }}>
+                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                <div style={{ flex: 1 }}>
+                  短縮URLの作成に失敗しました（ネットワーク制限など）。
+                  {activeTooLong
+                    ? <> このままではClassroomに貼り付けられない可能性があります。「再試行」するか、単語数・例文を減らしてください。</>
+                    : <> ただし圧縮済みURLが{CLASSROOM_SAFE_URL_LENGTH}文字以内なので、このままClassroomに貼り付けられます。</>}
+                </div>
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={() => setRetryCount((c) => c + 1)}
+                  style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <RefreshCw size={13} /> 再試行
+                </button>
+              </div>
+            )}
+
+            {!shortenFailed && (
+              <p style={{ margin: '0 0 10px 0', fontSize: '0.82rem', color: '#047857', lineHeight: 1.4 }}>
+                Classroomの添付欄（リンク）や投稿本文にそのまま貼り付けて配信できる短縮URLです。
+              </p>
+            )}
 
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
@@ -265,7 +297,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 padding: 0,
               }}
             >
-              <Link2 size={14} /> {showDirectUrl ? '▼ 直接フルURLを隠す' : '▶ 短縮サービスを経由しない直接フルURLを表示する'}
+              <Link2 size={14} /> {showDirectUrl ? '▼ 直接フルURLを隠す' : `▶ 短縮サービスを経由しない直接URLを表示する（${directShareUrl.length}文字${directTooLong ? '・Classroom上限超え' : ''}）`}
             </button>
 
             {showDirectUrl && (
